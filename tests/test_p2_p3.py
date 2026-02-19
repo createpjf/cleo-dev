@@ -16,9 +16,9 @@ class TestPeerReviewAntiCheating:
     def test_compute_weight_normal(self, tmp_workdir):
         from reputation.peer_review import PeerReviewAggregator
         pr = PeerReviewAggregator()
-        # Normal reviewer with rep=70 should get weight around 0.7
+        # Normal reviewer with rep=70 should get weight = 70/100 = 0.7
         weight = pr.compute_weight("reviewer", "target", 70.0)
-        assert 0.5 <= weight <= 1.0
+        assert 0.6 <= weight <= 0.8
 
     def test_mutual_inflation_penalty(self, tmp_workdir):
         from reputation.peer_review import PeerReviewAggregator
@@ -89,10 +89,11 @@ class TestPathCVoting:
         eng._write_vote_request("executor", {"proposal": "test restructure"})
 
         result = eng.cast_vote("executor", "planner", approve=True)
-        assert "error" not in result or result.get("error") != "no pending vote"
+        assert result.get("error") != "no pending vote", "Vote file should exist"
 
         pending = eng.get_pending_votes()
-        assert len(pending) >= 0  # may have been executed or still pending
+        # After one vote, either still pending or already executed
+        assert isinstance(pending, list)
 
     def test_double_vote_rejected(self, tmp_workdir):
         from reputation.evolution import EvolutionEngine

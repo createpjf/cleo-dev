@@ -270,11 +270,11 @@ class EvolutionEngine:
     def cast_vote(self, agent_id: str, voter_id: str, approve: bool) -> dict:
         """Cast a vote on a Path C role restructure request."""
         path = f"memory/pending_votes/{agent_id}.json"
-        if not os.path.exists(path):
-            return {"error": "no pending vote", "agent_id": agent_id}
-
         lock = self._get_lock(path)
         with lock:
+            if not os.path.exists(path):
+                return {"error": "no pending vote", "agent_id": agent_id}
+
             with open(path, "r") as f:
                 vote_data = json.load(f)
 

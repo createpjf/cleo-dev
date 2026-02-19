@@ -169,7 +169,7 @@ async def _handle_review_request(agent, board: TaskBoard, mail: dict, sched):
     # Reviewer completes the task after review (Phase 4 fix)
     if task_obj and task_obj.status.value == "review":
         completed = board.complete(task_id)
-        if "review_failed" in completed.evolution_flags:
+        if completed and "review_failed" in completed.evolution_flags:
             logger.info("[%s] review REJECTED task %s — sent back to PENDING",
                         agent.cfg.agent_id, task_id)
 
@@ -362,7 +362,12 @@ async def _agent_loop(agent, bus: ContextBus, board: TaskBoard,
                         logger.warning("[%s] %s — saving result and exiting",
                                        agent.cfg.agent_id, budget_err)
                         board.submit_for_review(task.task_id, result)
-                        board.complete(task.task_id)
+                        # Let the reviewer complete the task normally;
+                        # auto-complete only if no reviewers available
+                        reviewers = config.get("reputation", {}).get(
+                            "peer_review_agents", [])
+                        if not any(r != agent.cfg.agent_id for r in reviewers):
+                            board.complete(task.task_id)
                         return  # exit agent loop gracefully
                     raise
 

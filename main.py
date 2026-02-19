@@ -1328,8 +1328,8 @@ def main():
         if args.action == "confirm":
             cmd_evolve_confirm(args.agent_id)
     else:
-        # Default: show help for python3 main.py (no args)
-        parser.print_help()
+        # Default: enter interactive chat mode (as documented)
+        interactive_main()
 
 
 if __name__ == "__main__":

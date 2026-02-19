@@ -357,10 +357,11 @@ class GnosisSafeAdapter:
         if threshold <= 1 and self._account:
             from web3 import Web3
             addr_bytes = bytes.fromhex(self._account.address[2:])
-            r = b'\x00' * 12 + addr_bytes
+            # r must be exactly 32 bytes: 12 zero-padding + 20-byte address
+            r = (b'\x00' * 12 + addr_bytes)[:32]
             s = b'\x00' * 32
             v = b'\x01'
-            sig = r + s + v
+            sig = r + s + v  # 32 + 32 + 1 = 65 bytes
 
             exec_tx = self.exec_transaction(to, value, data, sig)
             result["status"] = "executed" if not exec_tx.startswith("0x_") else "failed"

@@ -108,6 +108,7 @@ class PeerReviewAggregator:
 
     def record_review(self, reviewer_id: str, target_id: str, score: int):
         """Record a review for anti-gaming analysis."""
+        score = max(0, min(100, score))
         with self._lock:
             history = self._read_history()
 

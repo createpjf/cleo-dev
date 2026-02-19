@@ -106,8 +106,12 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def _read_body(self) -> dict:
+        MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
         length = int(self.headers.get("Content-Length", 0))
         if length == 0:
+            return {}
+        if length > MAX_BODY_SIZE:
+            self._json_response(413, {"error": "Request body too large"})
             return {}
         raw = self.rfile.read(length)
         return json.loads(raw)

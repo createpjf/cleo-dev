@@ -115,8 +115,8 @@ class UsageTracker:
 
             self._write(data)
 
-        # Check budget limits (outside lock to avoid blocking)
-        self._check_budget(agg)
+            # Check budget limits inside lock to prevent concurrent overspend
+            self._check_budget(agg)
 
     def get_summary(self) -> dict:
         """Get aggregated usage summary."""
