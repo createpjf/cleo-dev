@@ -136,8 +136,10 @@ def interactive_main():
                 "[bold]/budget[/bold]     — view/set spending limits\n"
                 "[bold]/cancel[/bold]     — cancel all running tasks\n"
                 "[bold]/workflows[/bold]  — list available workflows\n"
-                "[bold]/config[/bold]     — show current config\n"
-                "[bold]/configure[/bold]  — re-run full setup wizard\n"
+                "[bold]/config[/bold]          — show current config\n"
+                "[bold]/config history[/bold]  — config backup history\n"
+                "[bold]/config rollback[/bold] — restore previous config\n"
+                "[bold]/configure[/bold]       — re-run full setup wizard\n"
                 "[bold]/chain[/bold]      — on-chain status\n"
                 "[bold]/doctor[/bold]     — system health check\n"
                 "[bold]/clear[/bold]      — clear task history (with confirmation)\n"
@@ -228,6 +230,42 @@ def interactive_main():
                 console.print(f"  [dim]Cleared {result} tasks.[/dim]\n")
             continue
 
+        if cmd == "config history":
+            from core.config_manager import history as config_history
+            entries = config_history("config/agents.yaml")
+            if not entries:
+                console.print("  [dim]No config backups yet.[/dim]\n")
+            else:
+                from rich.table import Table as RichTable
+                tbl = RichTable(box=None, padding=(0, 1), show_header=True)
+                tbl.add_column("#", justify="right")
+                tbl.add_column("Timestamp")
+                tbl.add_column("Hash", style="dim")
+                tbl.add_column("Reason")
+                import time as _t
+                for i, e in enumerate(entries):
+                    ts = _t.strftime("%Y-%m-%d %H:%M:%S", _t.localtime(e["timestamp"]))
+                    tbl.add_row(str(i), ts, e["hash"], e.get("reason", ""))
+                console.print(tbl)
+                console.print()
+            continue
+
+        if cmd and cmd.startswith("config rollback"):
+            from core.config_manager import rollback as config_rollback
+            parts = cmd.split()
+            version = int(parts[2]) if len(parts) > 2 else -1
+            ok = config_rollback("config/agents.yaml", version=version)
+            if ok:
+                # Reload config after rollback
+                import yaml as _yaml
+                with open("config/agents.yaml") as f:
+                    config = _yaml.safe_load(f)
+                agents = config.get("agents", [])
+                console.print(f"  [green]Rolled back config.[/green] Agents: {', '.join(a['id'] for a in agents)}\n")
+            else:
+                console.print("  [red]Rollback failed.[/red] Use /config history to see available versions.\n")
+            continue
+
         if cmd and cmd.startswith("chain"):
             parts = cmd.split()
             action = parts[1] if len(parts) > 1 else "status"
@@ -236,6 +274,8 @@ def interactive_main():
             continue
 
         if cmd in ("setup", "configure") or _lower in ("configure", "swarm configure"):
+            from core.config_manager import snapshot_all
+            snapshot_all(reason="pre-configure")
             cmd_init()
             # Reload env + config after reconfiguration
             load_dotenv()
@@ -647,9 +687,8 @@ def cmd_agents_add(name: str):
     entry = _build_agent_entry(name, role, model, skills, provider)
     config.setdefault("agents", []).append(entry)
 
-    with open("config/agents.yaml", "w") as f:
-        f.write("# config/agents.yaml\n\n")
-        yaml.dump(config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    from core.config_manager import safe_write_yaml
+    safe_write_yaml("config/agents.yaml", config, reason=f"add agent {name}")
 
     print(f"\n  ✓ Agent '{name}' added → {PROVIDERS[provider]['label']}/{model}")
     print(f"  Team: {', '.join(a['id'] for a in config['agents'])}\n")
