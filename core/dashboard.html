@@ -535,6 +535,9 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
     <div class="nav-item" data-panel="skills" onclick="switchPanel('skills')">
       <span class="icon">📝</span><span>Skills</span>
     </div>
+    <div class="nav-item" data-panel="tools" onclick="switchPanel('tools')">
+      <span class="icon">🔧</span><span>Tools</span>
+    </div>
     <div class="nav-item" data-panel="usage" onclick="switchPanel('usage')">
       <span class="icon">📈</span><span>Usage</span>
     </div>
@@ -666,6 +669,20 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
       <div class="skills-empty">Select a skill from the list</div>
     </div>
   </div>
+</div>
+
+<!-- ── Panel: Tools ── -->
+<div class="panel" id="panel-tools">
+  <div class="page-header">
+    <div class="page-title">Built-in Tools</div>
+    <div style="font-size:12px;color:var(--muted)">Agent tool registry — web search, shell exec, cron, media, filesystem</div>
+  </div>
+  <div class="stats" id="toolsStats">
+    <div class="stat"><div class="stat-value green" id="tAvail">0</div><div class="stat-label">Available</div></div>
+    <div class="stat"><div class="stat-value" id="tTotal">0</div><div class="stat-label">Total</div></div>
+    <div class="stat"><div class="stat-value cyan" id="tGroups">0</div><div class="stat-label">Groups</div></div>
+  </div>
+  <div id="toolsContent" class="card-row" style="flex-direction:column;gap:12px"></div>
 </div>
 
 <!-- ── Panel: Usage ── -->
@@ -1033,6 +1050,7 @@ function switchPanel(name) {
   // Load data for panel
   if (name === 'agents') loadAgents();
   if (name === 'skills') loadSkills();
+  if (name === 'tools') loadTools();
   if (name === 'usage') loadUsage();
   if (name === 'config') loadConfig();
   if (name === 'gateway') loadGatewayInfo();
@@ -2779,6 +2797,74 @@ async function createSkill() {
   } else {
     toast(res?.error || 'Failed to create', 'error');
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  TOOLS
+// ══════════════════════════════════════════════════════════════════
+
+async function loadTools() {
+  const data = await api('/v1/tools');
+  if (!data) return;
+
+  const tools = data.tools || [];
+  const available = tools.filter(t => t.available).length;
+  const groups = Object.keys(data.groups || {}).length;
+
+  document.getElementById('tAvail').textContent = available;
+  document.getElementById('tTotal').textContent = tools.length;
+  document.getElementById('tGroups').textContent = groups;
+
+  // Group tools by group
+  const byGroup = {};
+  for (const t of tools) {
+    const g = t.group || 'other';
+    if (!byGroup[g]) byGroup[g] = [];
+    byGroup[g].push(t);
+  }
+
+  const groupLabels = {web:'Web Tools',automation:'Automation',media:'Media & Devices',fs:'Filesystem',other:'Other'};
+  const groupIcons = {web:'🌐',automation:'⚡',media:'📷',fs:'📁',other:'🔧'};
+
+  let h = '';
+  for (const [gname, gtools] of Object.entries(byGroup)) {
+    const label = groupLabels[gname] || gname;
+    const icon = groupIcons[gname] || '🔧';
+    h += '<div class="card" style="padding:16px">';
+    h += '<h3 style="margin:0 0 12px;font-size:14px">' + icon + ' ' + escHtml(label) + '</h3>';
+    h += '<div style="display:flex;flex-direction:column;gap:8px">';
+    for (const t of gtools) {
+      const statusColor = t.available ? 'var(--green)' : 'var(--muted)';
+      const statusIcon = t.available ? '✓' : '✗';
+      const envHint = !t.available && t.requires_env && t.requires_env.length
+        ? ' <span style="color:var(--muted);font-size:11px">(needs ' + escHtml(t.requires_env.join(', ')) + ')</span>'
+        : '';
+      const params = Object.keys(t.parameters || {});
+      const paramsStr = params.length ? params.join(', ') : 'none';
+      h += '<div style="display:flex;align-items:start;gap:10px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.02)">';
+      h += '<span style="color:' + statusColor + ';font-weight:bold;min-width:18px">' + statusIcon + '</span>';
+      h += '<div style="flex:1">';
+      h += '<div style="font-weight:600;font-size:13px">' + escHtml(t.name) + envHint + '</div>';
+      h += '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + escHtml(t.description) + '</div>';
+      h += '<div style="font-size:10px;color:var(--muted);margin-top:2px">Params: ' + escHtml(paramsStr) + '</div>';
+      h += '</div></div>';
+    }
+    h += '</div></div>';
+  }
+
+  // Profiles reference
+  h += '<div class="card" style="padding:16px">';
+  h += '<h3 style="margin:0 0 12px;font-size:14px">📋 Tool Profiles</h3>';
+  const profiles = data.profiles || {};
+  for (const [pname, ptools] of Object.entries(profiles)) {
+    const toolsStr = Array.isArray(ptools) ? ptools.join(', ') : ptools;
+    h += '<div style="margin-bottom:6px"><span style="font-weight:600;color:var(--accent)">' + escHtml(pname) + '</span>';
+    h += ' <span style="color:var(--muted);font-size:11px">— ' + escHtml(String(toolsStr)) + '</span></div>';
+  }
+  h += '<div style="margin-top:10px;font-size:11px;color:var(--muted)">Configure in agents.yaml under each agent\'s <code>tools:</code> key, or use <code>swarm configure --section tools</code></div>';
+  h += '</div>';
+
+  document.getElementById('toolsContent').innerHTML = h;
 }
 
 // ══════════════════════════════════════════════════════════════════

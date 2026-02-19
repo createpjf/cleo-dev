@@ -915,6 +915,8 @@ class Orchestrator:
                                           .get("episodic_recall_budget", 1500),
                 "kb_recall_budget":       agent_def.get("memory", {})
                                           .get("kb_recall_budget", 800),
+                # Tool configuration (OpenClaw-inspired)
+                "tools_config":           agent_def.get("tools", {}),
             }
             p = mp.Process(
                 target=_agent_process,

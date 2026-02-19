@@ -238,7 +238,7 @@ def run_onboard():
 
 def _wizard_quick():
     """QuickStart path — same as run_quick_setup but called from configure."""
-    console.print(f"\n  [{C_ACCENT}]Step 1/3 · Model & Auth[/{C_ACCENT}]")
+    console.print(f"\n  [{C_ACCENT}]Step 1/4 · Model & Auth[/{C_ACCENT}]")
 
     provider = _ask_provider()
     if provider is None:
@@ -255,13 +255,17 @@ def _wizard_quick():
     # Write config
     _write_config_quick(provider, model, api_key)
 
+    # Tools quick setup
+    console.print(f"\n  [{C_ACCENT}]Step 2/4 · Tools[/{C_ACCENT}]")
+    _ask_tools_quick()
+
     # Health check
-    console.print(f"\n  [{C_ACCENT}]Step 2/3 · Health Check[/{C_ACCENT}]")
+    console.print(f"\n  [{C_ACCENT}]Step 3/4 · Health Check[/{C_ACCENT}]")
     from core.doctor import run_doctor_quick
     run_doctor_quick(console)
 
     # Gateway summary
-    console.print(f"  [{C_ACCENT}]Step 3/3 · Gateway Summary[/{C_ACCENT}]")
+    console.print(f"  [{C_ACCENT}]Step 4/4 · Gateway Summary[/{C_ACCENT}]")
     _show_gateway_summary(provider, model)
 
 
@@ -382,6 +386,83 @@ def _wizard_advanced():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  TOOLS QUICK SETUP
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _ask_tools_quick():
+    """Quick tools setup — ask about web search (most common)."""
+    try:
+        from core.tools import list_all_tools
+        all_tools = list_all_tools()
+    except ImportError:
+        console.print(f"  [{C_DIM}]Tools module not available.[/{C_DIM}]")
+        return
+
+    # Show tool status summary
+    available = [t for t in all_tools if t.is_available()]
+    unavail = [t for t in all_tools if not t.is_available()]
+    console.print(f"  [{C_OK}]{len(available)}[/{C_OK}] tools available, "
+                  f"[{C_DIM}]{len(unavail)} need configuration[/{C_DIM}]")
+
+    # Ask about web search (most impactful tool requiring config)
+    brave_key = os.environ.get("BRAVE_API_KEY", "")
+    if not brave_key:
+        enable_search = questionary.confirm(
+            "Enable web_search? (requires free Brave Search API key)",
+            default=False,
+            style=STYLE,
+        ).ask()
+        if enable_search:
+            console.print(f"  [{C_DIM}]Get a free key at https://brave.com/search/api/[/{C_DIM}]")
+            key = questionary.text(
+                "BRAVE_API_KEY:",
+                default="",
+                style=STYLE,
+            ).ask()
+            if key and key.strip():
+                _write_env("BRAVE_API_KEY", key.strip())
+                os.environ["BRAVE_API_KEY"] = key.strip()
+                console.print(f"  [{C_OK}]+[/{C_OK}] web_search enabled")
+            else:
+                console.print(f"  [{C_DIM}]Skipped — can enable later with `swarm configure --section tools`[/{C_DIM}]")
+        else:
+            console.print(f"  [{C_DIM}]Skipped — agents can still use other tools (exec, fs, etc.)[/{C_DIM}]")
+    else:
+        console.print(f"  [{C_OK}]+[/{C_OK}] web_search already enabled")
+
+    # Tool profile
+    profile = questionary.select(
+        "Default tool access for agents:",
+        choices=[
+            questionary.Choice("Full (all tools)",    value="full"),
+            questionary.Choice("Coding (web + exec + fs)", value="coding"),
+            questionary.Choice("Minimal (web only)",  value="minimal"),
+        ],
+        default="full",
+        style=STYLE,
+    ).ask()
+    if profile:
+        # Update config with default tools profile
+        try:
+            cfg_path = os.path.join("config", "agents.yaml")
+            if os.path.exists(cfg_path):
+                import yaml
+                with open(cfg_path) as f:
+                    cfg = yaml.safe_load(f) or {}
+                cfg.setdefault("tools", {})["default_profile"] = profile
+                for agent in cfg.get("agents", []):
+                    if "tools" not in agent:
+                        agent["tools"] = {"profile": profile}
+                with open(cfg_path, "w") as f:
+                    f.write("# config/agents.yaml\n\n")
+                    yaml.dump(cfg, f, allow_unicode=True,
+                              default_flow_style=False, sort_keys=False)
+        except Exception:
+            pass
+        console.print(f"  [{C_OK}]+[/{C_OK}] Tool profile: {profile}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  SECTIONAL CONFIGURE — OpenClaw-style "only change what you need"
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -396,6 +477,7 @@ _SECTIONS = [
     ("compaction",  "Compaction",  "Context window compaction settings"),
     ("gateway",     "Gateway",     "Port, auth token, daemon settings"),
     ("chain",       "Chain",       "On-chain reputation (ERC-8004)"),
+    ("tools",       "Tools",       "Built-in tools: web search, exec, cron, media"),
     ("health",      "Health check","Run doctor diagnostics"),
 ]
 
@@ -1544,6 +1626,253 @@ def _skills_assign_to_agents(cfg: dict, skill_name: str = "",
                     console.print(f"  [{C_OK}]+[/{C_OK}] Added to {agent['id']}")
 
 
+def _section_tools(cfg: dict):
+    """Section: Configure built-in tools — OpenClaw-style tool configuration.
+
+    Lets users:
+    - Enable/disable tool groups (Web, Automation, Media, Filesystem)
+    - Configure required API keys (e.g. BRAVE_API_KEY for web_search)
+    - Set default tool profile for new agents
+    - Assign tool profiles per agent
+    """
+    from core.tools import (
+        list_all_tools, TOOL_PROFILES, TOOL_GROUPS,
+        get_available_tools,
+    )
+
+    all_tools = list_all_tools()
+
+    # ── Current status ──
+    console.print(f"  [{C_DIM}]Built-in tools status:[/{C_DIM}]")
+    for t in all_tools:
+        avail = t.is_available()
+        icon = f"[{C_OK}]✓[/{C_OK}]" if avail else f"[{C_WARN}]✗[/{C_WARN}]"
+        env_note = ""
+        if not avail and t.requires_env:
+            env_note = f" [{C_DIM}](needs {', '.join(t.requires_env)})[/{C_DIM}]"
+        console.print(f"    {icon} {t.name:<14s} [{C_DIM}]{t.group}[/{C_DIM}]{env_note}")
+    console.print()
+
+    # ── Action menu ──
+    actions = [
+        questionary.Choice("Enable web_search (Brave Search API)", value="brave"),
+        questionary.Choice("Set default tool profile for agents",  value="profile"),
+        questionary.Choice("Configure tools per agent",            value="per_agent"),
+        questionary.Choice("Test a tool",                          value="test"),
+    ]
+
+    action = questionary.select(
+        "What would you like to configure?",
+        choices=actions,
+        style=STYLE,
+    ).ask()
+    if action is None:
+        return
+
+    # ── Enable Brave Search ──
+    if action == "brave":
+        current = os.environ.get("BRAVE_API_KEY", "")
+        if current:
+            console.print(f"  [{C_OK}]+[/{C_OK}] BRAVE_API_KEY is set [{C_DIM}]({current[:8]}...)[/{C_DIM}]")
+            change = questionary.confirm(
+                "Update the key?", default=False, style=STYLE).ask()
+            if not change:
+                return
+
+        console.print(f"  [{C_DIM}]Get a free key at https://brave.com/search/api/[/{C_DIM}]")
+        key = questionary.text(
+            "BRAVE_API_KEY:",
+            default="",
+            style=STYLE,
+        ).ask()
+        if key and key.strip():
+            _write_env("BRAVE_API_KEY", key.strip())
+            os.environ["BRAVE_API_KEY"] = key.strip()
+            console.print(f"  [{C_OK}]+[/{C_OK}] web_search enabled (saved to .env)")
+        else:
+            console.print(f"  [{C_DIM}]Skipped — web_search remains disabled.[/{C_DIM}]")
+
+    # ── Set default tool profile ──
+    elif action == "profile":
+        profiles_desc = {
+            "minimal": "web_search + web_fetch only",
+            "coding":  "web + exec + filesystem + process",
+            "full":    "all tools (web, automation, media, filesystem)",
+        }
+        choices = [
+            questionary.Choice(
+                f"{name:<10s} — {desc}",
+                value=name,
+            )
+            for name, desc in profiles_desc.items()
+        ]
+        selected = questionary.select(
+            "Default tool profile for agents:",
+            choices=choices,
+            default="full",
+            style=STYLE,
+        ).ask()
+        if selected is None:
+            return
+
+        # Write to global config
+        cfg.setdefault("tools", {})["default_profile"] = selected
+        console.print(f"  [{C_OK}]+[/{C_OK}] Default profile: {selected}")
+
+        # Apply to all agents that don't have per-agent tools config
+        agents = cfg.get("agents", [])
+        applied = 0
+        for agent in agents:
+            if "tools" not in agent:
+                agent["tools"] = {"profile": selected}
+                applied += 1
+            elif not agent.get("tools", {}).get("profile"):
+                agent.setdefault("tools", {})["profile"] = selected
+                applied += 1
+        if applied:
+            console.print(f"  [{C_DIM}]Applied to {applied} agent(s) without custom tools config.[/{C_DIM}]")
+
+    # ── Per-agent tool configuration ──
+    elif action == "per_agent":
+        agents = cfg.get("agents", [])
+        if not agents:
+            console.print(f"  [{C_WARN}]No agents configured yet.[/{C_WARN}]")
+            return
+
+        agent_choices = [
+            questionary.Choice(
+                f"{a['id']:<16s} [{C_DIM}]tools: "
+                f"{a.get('tools', {}).get('profile', 'default')}[/{C_DIM}]",
+                value=a["id"],
+            )
+            for a in agents
+        ]
+        agent_id = questionary.select(
+            "Which agent to configure?",
+            choices=agent_choices,
+            style=STYLE,
+        ).ask()
+        if agent_id is None:
+            return
+
+        agent = next((a for a in agents if a["id"] == agent_id), None)
+        if not agent:
+            return
+
+        # Tool profile
+        profiles_desc = {
+            "minimal": "web_search + web_fetch only",
+            "coding":  "web + exec + filesystem + process",
+            "full":    "all tools",
+        }
+        current_profile = agent.get("tools", {}).get("profile", "full")
+        profile = questionary.select(
+            f"Tool profile for {agent_id}:",
+            choices=[
+                questionary.Choice(f"{n:<10s} — {d}", value=n)
+                for n, d in profiles_desc.items()
+            ],
+            default=current_profile,
+            style=STYLE,
+        ).ask()
+        if profile is None:
+            return
+
+        agent.setdefault("tools", {})["profile"] = profile
+
+        # Additional deny list
+        deny_groups = questionary.checkbox(
+            "Deny access to (optional):",
+            choices=[
+                questionary.Choice(f"group:web — web_search, web_fetch",       value="group:web"),
+                questionary.Choice(f"group:automation — exec, cron, process",  value="group:automation"),
+                questionary.Choice(f"group:media — screenshot, notify",        value="group:media"),
+                questionary.Choice(f"group:fs — read_file, write_file, list_dir", value="group:fs"),
+            ],
+            style=STYLE,
+        ).ask()
+        if deny_groups:
+            agent["tools"]["deny"] = deny_groups
+            console.print(f"  [{C_DIM}]Denied: {', '.join(deny_groups)}[/{C_DIM}]")
+
+        console.print(f"  [{C_OK}]+[/{C_OK}] {agent_id}: profile={profile}")
+
+    # ── Test a tool ──
+    elif action == "test":
+        test_choices = [
+            questionary.Choice(f"{t.name:<14s} — {t.description[:50]}",
+                               value=t.name)
+            for t in all_tools if t.is_available()
+        ]
+        if not test_choices:
+            console.print(f"  [{C_WARN}]No tools available. Configure API keys first.[/{C_WARN}]")
+            return
+
+        tool_name = questionary.select(
+            "Select a tool to test:",
+            choices=test_choices,
+            style=STYLE,
+        ).ask()
+        if tool_name is None:
+            return
+
+        # Quick test based on tool
+        from core.tools import get_tool
+        tool = get_tool(tool_name)
+        if not tool:
+            return
+
+        if tool_name == "web_search":
+            query = questionary.text("Search query:", default="hello world",
+                                     style=STYLE).ask()
+            if query:
+                result = tool.execute(query=query, count=3)
+                if result.get("ok"):
+                    for r in result.get("results", []):
+                        console.print(f"  • {r['title']}")
+                        console.print(f"    [{C_DIM}]{r['url']}[/{C_DIM}]")
+                else:
+                    console.print(f"  [{C_WARN}]{result.get('error', 'Failed')}[/{C_WARN}]")
+
+        elif tool_name == "list_dir":
+            result = tool.execute(path=".")
+            if result.get("ok"):
+                for e in result.get("entries", [])[:10]:
+                    icon = "📁" if e["type"] == "dir" else "📄"
+                    console.print(f"  {icon} {e['name']}")
+                console.print(f"  [{C_DIM}]({result.get('total', 0)} items)[/{C_DIM}]")
+            else:
+                console.print(f"  [{C_WARN}]{result.get('error')}[/{C_WARN}]")
+
+        elif tool_name == "notify":
+            result = tool.execute(title="Swarm", message="Tool test successful!")
+            if result.get("ok"):
+                console.print(f"  [{C_OK}]+[/{C_OK}] Notification sent!")
+            else:
+                console.print(f"  [{C_WARN}]{result.get('error')}[/{C_WARN}]")
+
+        elif tool_name == "screenshot":
+            result = tool.execute()
+            if result.get("ok"):
+                console.print(f"  [{C_OK}]+[/{C_OK}] Screenshot saved: {result.get('path')}")
+            else:
+                console.print(f"  [{C_WARN}]{result.get('error')}[/{C_WARN}]")
+
+        elif tool_name == "process":
+            result = tool.execute()
+            if result.get("ok"):
+                procs = result.get("processes", [])[:5]
+                for p in procs:
+                    console.print(f"  [{C_DIM}]{p}[/{C_DIM}]")
+                console.print(f"  [{C_DIM}]({result.get('total', 0)} total)[/{C_DIM}]")
+            else:
+                console.print(f"  [{C_WARN}]{result.get('error')}[/{C_WARN}]")
+
+        else:
+            console.print(f"  [{C_DIM}]Manual test not implemented for {tool_name}. "
+                          f"Use the API: POST /v1/exec[/{C_DIM}]")
+
+
 def _section_health(cfg: dict):
     """Section: Run health check."""
     from core.doctor import run_doctor
@@ -1562,6 +1891,7 @@ _SECTION_HANDLERS = {
     "model":      _section_model,
     "agents":     _section_agents,
     "skills":     _section_skills,
+    "tools":      _section_tools,
     "memory":     _section_memory,
     "resilience": _section_resilience,
     "compaction": _section_compaction,

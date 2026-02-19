@@ -48,6 +48,7 @@ Endpoints:
   GET  /v1/memory/kb/notes           Shared knowledge base notes
   GET  /v1/memory/kb/moc             Map of Content
   GET  /v1/memory/kb/insights        Cross-agent insights feed
+  GET  /v1/tools                      List built-in tools and availability
 
 Default port: 19789  (configurable via SWARM_GATEWAY_PORT or config)
 Auth: Bearer token  (auto-generated, configurable via SWARM_GATEWAY_TOKEN)
@@ -166,6 +167,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._handle_config()
         elif path == "/v1/doctor":
             self._handle_doctor()
+        elif path == "/v1/tools":
+            self._handle_tools()
         elif path.startswith("/v1/task/"):
             task_id = path[len("/v1/task/"):]
             self._handle_get_task(task_id)
@@ -653,6 +656,34 @@ class _Handler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             self._json_response(500, {"error": f"Doctor failed: {e}"})
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  Tools API
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _handle_tools(self):
+        """List all built-in tools with availability status."""
+        try:
+            from core.tools import list_all_tools, TOOL_PROFILES, TOOL_GROUPS
+            tools = list_all_tools()
+            tool_list = []
+            for t in tools:
+                tool_list.append({
+                    "name": t.name,
+                    "description": t.description,
+                    "group": t.group,
+                    "available": t.is_available(),
+                    "requires_env": t.requires_env,
+                    "parameters": t.parameters,
+                })
+            self._json_response(200, {
+                "tools": tool_list,
+                "profiles": {k: list(v) if v else "all"
+                             for k, v in TOOL_PROFILES.items()},
+                "groups": TOOL_GROUPS,
+            })
+        except Exception as e:
+            self._json_response(500, {"error": f"Failed to list tools: {e}"})
 
     # ══════════════════════════════════════════════════════════════════════════
     #  NEW HANDLERS — Agent Management
