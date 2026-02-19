@@ -159,13 +159,24 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .score-fill{height:100%;border-radius:3px;transition:width .5s}
 .score-num{font-family:var(--mono);font-size:14px;font-weight:700;min-width:36px;text-align:right}
 
-/* ── Agent Editor (inline below card) ─────────────────────────── */
-.agent-editor{background:var(--bg3);border:1px solid var(--bg4);border-radius:0 0 var(--radius) var(--radius);padding:16px;margin-top:-1px;animation:slideDown .2s ease}
+/* ── Agent Editor (popup modal) ───────────────────────────────── */
+.agent-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease}
+.agent-modal{background:var(--bg2);border:1px solid var(--bg3);border-radius:12px;padding:24px;width:480px;max-width:90vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);animation:slideUp .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.agent-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.agent-modal-title{font-size:16px;font-weight:700;color:var(--fg)}
+.agent-modal-close{background:none;border:none;color:var(--fg3);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:4px}
+.agent-modal-close:hover{background:var(--bg3);color:var(--fg)}
 .agent-editor .field{margin-bottom:12px}
 .agent-editor .field label{display:block;font-size:11px;font-weight:600;color:var(--fg2);text-transform:uppercase;margin-bottom:4px}
 .agent-editor .field-row{display:flex;gap:12px}
 .agent-editor .field-row>.field{flex:1}
-.agent-editor .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.agent-editor .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--bg3)}
+.btn-create-agent{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-create-agent:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn-delete-agent{background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;transition:all .15s}
+.btn-delete-agent:hover{background:#e74c3c;color:#fff}
 
 /* ── Skills Layout ────────────────────────────────────────────── */
 .skills-layout{display:flex;gap:16px;height:calc(100vh - 120px)}
@@ -615,13 +626,17 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 
 <!-- ── Panel: Agents ── -->
 <div class="panel" id="panel-agents">
-  <div class="page-header">
-    <div class="page-title">Agents</div>
-    <div style="font-size:12px;color:var(--fg3)">Click an agent card to edit</div>
+  <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div class="page-title">Agents</div>
+      <div style="font-size:12px;color:var(--fg3)">Click an agent card to edit</div>
+    </div>
+    <button class="btn-create-agent" onclick="showCreateAgentModal()">+ Create Agent</button>
   </div>
   <div class="agent-grid" id="agentGrid">
     <div class="empty">Loading agents…</div>
   </div>
+  <div id="agentModalContainer"></div>
 </div>
 
 <!-- ── Panel: Skills ── -->
@@ -710,9 +725,18 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 
 <!-- ── Panel: Health ── -->
 <div class="panel" id="panel-health">
-  <div class="page-header"><div class="page-title">System Health</div></div>
+  <div class="page-header">
+    <div class="page-title">System Health</div>
+    <div class="page-actions"><button class="btn btn-sm" onclick="loadDoctor()">Re-check</button></div>
+  </div>
+  <div class="stat-grid" id="healthStats" style="margin-bottom:16px">
+    <div class="stat-card"><div class="stat-value" id="hGateway" style="color:var(--green)">—</div><div class="stat-label">Gateway</div></div>
+    <div class="stat-card"><div class="stat-value" id="hUptime">—</div><div class="stat-label">Uptime</div></div>
+    <div class="stat-card"><div class="stat-value" id="hPort">—</div><div class="stat-label">Port</div></div>
+    <div class="stat-card"><div class="stat-value" id="hAgents">—</div><div class="stat-label">Agents</div></div>
+  </div>
   <div class="card">
-    <div class="card-title">Health Checks</div>
+    <div class="card-title">Diagnostic Checks</div>
     <ul class="checks" id="healthChecks"><li class="empty">Running checks…</li></ul>
   </div>
 </div>
@@ -2152,12 +2176,11 @@ async function loadAgents() {
     const sc = scores[a.id] || {};
     const composite = sc.composite || 0;
     const dims = sc.dimensions || {};
-    const isEditing = editingAgent === a.id;
     const hb = heartbeatData[a.id];
     const isOnline = hb && hb.online;
 
     // ── Card surface: compact, consistent ──
-    html += '<div class="agent-card' + (isEditing ? ' editing' : '') + '" onclick="editAgent(\'' + escHtml(a.id) + '\')">';
+    html += '<div class="agent-card" onclick="editAgent(\'' + escHtml(a.id) + '\')">';
     // Row 1: Name + status
     html += '<div class="agent-card-header">';
     html += '<span class="hb-dot ' + (isOnline ? 'online' : 'offline') + '" data-agent-id="' + escHtml(a.id) + '"></span>';
@@ -2210,70 +2233,88 @@ async function loadAgents() {
     }
 
     html += '</div>'; // .agent-card
+  }
+  grid.innerHTML = html;
 
-    // ── Expanded editor panel ──
-    if (isEditing) {
-      html += '<div class="agent-editor" onclick="event.stopPropagation()">';
+  // Render modal if editing
+  const modalContainer = document.getElementById('agentModalContainer');
+  if (editingAgent) {
+    const a = agents.find(x => x.id === editingAgent);
+    if (a) {
+      const sc = scores[a.id] || {};
+      const composite = sc.composite || 0;
+      const dims = sc.dimensions || {};
+      let mhtml = '<div class="agent-modal-overlay" onclick="closeAgentEditor()">';
+      mhtml += '<div class="agent-modal" onclick="event.stopPropagation()">';
+      mhtml += '<div class="agent-modal-header"><span class="agent-modal-title">Edit: ' + escHtml(a.id) + '</span>'
+        + '<button class="agent-modal-close" onclick="closeAgentEditor()">✕</button></div>';
+      mhtml += '<div class="agent-editor">';
 
-      // ── Basic settings ──
-      html += '<div class="field-row">';
-      html += '<div class="field"><label>Model</label><input class="input" id="editModel" value="' + escHtml(a.model||'') + '"></div>';
-      html += '<div class="field"><label>Provider</label><select class="input" id="editProvider">';
+      // Basic settings
+      mhtml += '<div class="field-row">';
+      mhtml += '<div class="field"><label>Model</label><input class="input" id="editModel" value="' + escHtml(a.model||'') + '"></div>';
+      mhtml += '<div class="field"><label>Provider</label><select class="input" id="editProvider">';
       for (const p of ['flock','openai','ollama','anthropic','deepseek','custom']) {
-        html += '<option' + (p===(a.provider||'') ? ' selected' : '') + '>' + p + '</option>';
+        mhtml += '<option' + (p===(a.provider||'') ? ' selected' : '') + '>' + p + '</option>';
       }
-      html += '</select></div>';
-      html += '</div>';
-      html += '<div class="field"><label>Role</label><textarea class="input" id="editRole" rows="2">' + escHtml(a.role||'') + '</textarea></div>';
+      mhtml += '</select></div>';
+      mhtml += '</div>';
+      mhtml += '<div class="field"><label>Role</label><textarea class="input" id="editRole" rows="3">' + escHtml(a.role||'') + '</textarea></div>';
 
-      // ── Skills checkboxes ──
-      html += '<div class="field"><label>Skills</label><div id="editSkillsBox" style="display:flex;flex-wrap:wrap;gap:6px">';
+      // Skills checkboxes
+      mhtml += '<div class="field"><label>Skills</label><div id="editSkillsBox" style="display:flex;flex-wrap:wrap;gap:6px">';
       const agentSkills = new Set(a.skills||[]);
       for (const sk of allSkills) {
         const checked = agentSkills.has(sk.name) ? ' checked' : '';
-        html += '<label style="font-size:12px;color:var(--fg2);display:flex;align-items:center;gap:3px;cursor:pointer">'
+        mhtml += '<label style="font-size:12px;color:var(--fg2);display:flex;align-items:center;gap:3px;cursor:pointer">'
           + '<input type="checkbox" class="edit-skill-cb" value="' + escHtml(sk.name) + '"' + checked + '>' + escHtml(sk.name) + '</label>';
       }
-      html += '</div></div>';
+      mhtml += '</div></div>';
 
-      // ── Fallback Models ──
-      html += '<div class="field"><label>Fallback Models (comma-separated)</label><input class="input" id="editFallbacks" value="' + escHtml((a.fallback_models||[]).join(', ')) + '"></div>';
+      // Fallback Models
+      mhtml += '<div class="field"><label>Fallback Models (comma-separated)</label><input class="input" id="editFallbacks" value="' + escHtml((a.fallback_models||[]).join(', ')) + '"></div>';
 
-      // ── API Key + Base URL (in expanded only) ──
-      html += '<div style="border-top:1px solid var(--bg4);margin:10px 0;padding-top:10px">';
-      html += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">API Configuration</div>';
-      html += '<div class="field-row">';
+      // API Key + Base URL
+      mhtml += '<div style="border-top:1px solid var(--bg4);margin:10px 0;padding-top:10px">';
+      mhtml += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">API Configuration</div>';
+      mhtml += '<div class="field-row">';
       const keyPlaceholder = a.api_key_masked ? 'Current: ' + a.api_key_masked : 'sk-xxxxxxxx';
-      html += '<div class="field"><label>API Key</label><input class="input" id="editApiKey" type="password" value="" placeholder="' + escHtml(keyPlaceholder) + '"><div style="font-size:10px;color:var(--fg3);margin-top:2px">Leave empty to keep current key</div></div>';
-      html += '<div class="field"><label>Base URL</label><input class="input" id="editBaseUrl" value="' + escHtml(a.base_url||'') + '" placeholder="https://api.openai.com/v1"></div>';
-      html += '</div>';
-      html += '</div>';
+      mhtml += '<div class="field"><label>API Key</label><input class="input" id="editApiKey" type="password" value="" placeholder="' + escHtml(keyPlaceholder) + '"><div style="font-size:10px;color:var(--fg3);margin-top:2px">Leave empty to keep current key</div></div>';
+      mhtml += '<div class="field"><label>Base URL</label><input class="input" id="editBaseUrl" value="' + escHtml(a.base_url||'') + '" placeholder="https://api.openai.com/v1"></div>';
+      mhtml += '</div>';
+      mhtml += '</div>';
 
-      // ── Score dimensions (in expanded only) ──
+      // Score dimensions
       if (composite > 0) {
         const dimNames = {task_completion:'Completion',output_quality:'Quality',improvement_rate:'Improvement',consistency:'Consistency',review_accuracy:'Review'};
-        html += '<div style="border-top:1px solid var(--bg4);margin:10px 0;padding-top:10px">';
-        html += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">Score Breakdown</div>';
+        mhtml += '<div style="border-top:1px solid var(--bg4);margin:10px 0;padding-top:10px">';
+        mhtml += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">Score Breakdown</div>';
         for (const [k,label] of Object.entries(dimNames)) {
           const v = dims[k] || 0;
-          html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:var(--fg2)">'
+          mhtml += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:var(--fg2)">'
             + '<span style="min-width:70px">' + label + '</span>'
             + '<div style="flex:1;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden">'
             + '<div style="height:100%;width:'+v+'%;background:'+scoreColor(v)+';border-radius:2px"></div></div>'
             + '<span style="min-width:28px;text-align:right;font-family:var(--mono)">' + v.toFixed(0) + '</span>'
             + '</div>';
         }
-        html += '</div>';
+        mhtml += '</div>';
       }
 
-      html += '<div class="actions">';
-      html += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();closeAgentEditor()">Cancel</button>';
-      html += '<button class="btn btn-green btn-sm" onclick="event.stopPropagation();saveAgent(\'' + escHtml(a.id) + '\')">Save</button>';
-      html += '</div>';
-      html += '</div>';
+      mhtml += '<div class="actions" style="justify-content:space-between">';
+      mhtml += '<button class="btn-delete-agent" onclick="deleteAgent(\'' + escHtml(a.id) + '\')">Delete Agent</button>';
+      mhtml += '<div style="display:flex;gap:8px">';
+      mhtml += '<button class="btn btn-outline btn-sm" onclick="closeAgentEditor()">Cancel</button>';
+      mhtml += '<button class="btn btn-green btn-sm" onclick="saveAgent(\'' + escHtml(a.id) + '\')">Save</button>';
+      mhtml += '</div></div>';
+      mhtml += '</div>'; // .agent-editor
+      mhtml += '</div>'; // .agent-modal
+      mhtml += '</div>'; // .agent-modal-overlay
+      modalContainer.innerHTML = mhtml;
     }
+  } else {
+    modalContainer.innerHTML = '';
   }
-  grid.innerHTML = html;
 }
 
 function editAgent(id) {
@@ -2283,7 +2324,7 @@ function editAgent(id) {
 
 function closeAgentEditor() {
   editingAgent = null;
-  loadAgents();
+  document.getElementById('agentModalContainer').innerHTML = '';
 }
 
 async function saveAgent(id) {
@@ -2306,6 +2347,84 @@ async function saveAgent(id) {
     loadAgents();
   } else {
     toast(res?.error || 'Failed to update agent', 'error');
+  }
+}
+
+function showCreateAgentModal() {
+  const container = document.getElementById('agentModalContainer');
+  let mhtml = '<div class="agent-modal-overlay" onclick="closeAgentEditor()">';
+  mhtml += '<div class="agent-modal" onclick="event.stopPropagation()">';
+  mhtml += '<div class="agent-modal-header"><span class="agent-modal-title">Create Agent</span>'
+    + '<button class="agent-modal-close" onclick="closeAgentEditor()">✕</button></div>';
+  mhtml += '<div class="agent-editor">';
+
+  // ID
+  mhtml += '<div class="field"><label>Agent ID (lowercase, no spaces)</label><input class="input" id="newAgentId" placeholder="e.g. researcher"></div>';
+
+  // Role
+  mhtml += '<div class="field"><label>Role</label><textarea class="input" id="newAgentRole" rows="2" placeholder="e.g. Research analyst who gathers and synthesizes information"></textarea></div>';
+
+  // Model + Provider
+  mhtml += '<div class="field-row">';
+  mhtml += '<div class="field"><label>Model</label><input class="input" id="newAgentModel" placeholder="e.g. gpt-4o"></div>';
+  mhtml += '<div class="field"><label>Provider</label><select class="input" id="newAgentProvider">';
+  for (const p of ['flock','openai','ollama','anthropic','deepseek','custom']) {
+    mhtml += '<option>' + p + '</option>';
+  }
+  mhtml += '</select></div>';
+  mhtml += '</div>';
+
+  // API Key + Base URL (optional)
+  mhtml += '<div style="border-top:1px solid var(--bg4);margin:10px 0;padding-top:10px">';
+  mhtml += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">API Configuration (optional)</div>';
+  mhtml += '<div class="field-row">';
+  mhtml += '<div class="field"><label>API Key</label><input class="input" id="newAgentApiKey" type="password" placeholder="Leave empty to use global key"></div>';
+  mhtml += '<div class="field"><label>Base URL</label><input class="input" id="newAgentBaseUrl" placeholder="Leave empty for default"></div>';
+  mhtml += '</div></div>';
+
+  mhtml += '<div class="actions">';
+  mhtml += '<button class="btn btn-outline btn-sm" onclick="closeAgentEditor()">Cancel</button>';
+  mhtml += '<button class="btn btn-green btn-sm" onclick="createAgent()">Create</button>';
+  mhtml += '</div>';
+  mhtml += '</div></div></div>';
+  container.innerHTML = mhtml;
+}
+
+async function createAgent() {
+  const id = (document.getElementById('newAgentId').value||'').trim().toLowerCase().replace(/\s+/g, '_');
+  const role = (document.getElementById('newAgentRole').value||'').trim();
+  const model = (document.getElementById('newAgentModel').value||'').trim();
+  const provider = document.getElementById('newAgentProvider').value;
+  const apiKey = (document.getElementById('newAgentApiKey').value||'').trim();
+  const baseUrl = (document.getElementById('newAgentBaseUrl').value||'').trim();
+
+  if (!id) { toast('Agent ID is required', 'error'); return; }
+  if (!model) { toast('Model is required', 'error'); return; }
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) { toast('ID must be alphanumeric (a-z, 0-9, _ or -)', 'error'); return; }
+
+  const body = { id, role: role || 'general assistant', model, provider, skills: ['_base'] };
+  if (apiKey) body.api_key = apiKey;
+  if (baseUrl) body.base_url = baseUrl;
+
+  const res = await apiPost('/v1/agents', body);
+  if (res && res.ok) {
+    toast('Agent ' + id + ' created');
+    closeAgentEditor();
+    loadAgents();
+  } else {
+    toast(res?.error || 'Failed to create agent', 'error');
+  }
+}
+
+async function deleteAgent(id) {
+  if (!confirm('Delete agent "' + id + '"? This removes it from the config but preserves skill files and cognition docs.')) return;
+  const res = await apiDelete('/v1/agents/' + id);
+  if (res && res.ok) {
+    toast('Agent ' + id + ' deleted');
+    closeAgentEditor();
+    loadAgents();
+  } else {
+    toast(res?.error || 'Failed to delete agent', 'error');
   }
 }
 
@@ -2713,13 +2832,25 @@ async function loadConfig() {
 // ══════════════════════════════════════════════════════════════════
 
 async function loadGatewayInfo() {
+  // Always show basic info from /health (no auth needed)
+  try {
+    const hRes = await fetch('/health');
+    const hData = await hRes.json();
+    if (hData && hData.status === 'ok') {
+      document.getElementById('gwPort').textContent = hData.port || '—';
+      document.getElementById('gwUptime').textContent = fmtTime(hData.uptime_seconds);
+      document.getElementById('gwStatus').textContent = 'Online';
+      document.getElementById('gwStatus').style.color = 'var(--green)';
+    }
+  } catch(e) {
+    document.getElementById('gwStatus').textContent = 'Offline';
+    document.getElementById('gwStatus').style.color = 'var(--red)';
+  }
+  // Fetch token (requires auth)
   const data = await apiPut('/v1/config/gateway', {action:'get_token'});
-  if (!data) return;
-
-  document.getElementById('gatewayToken').textContent = data.token || '—';
-  document.getElementById('gwPort').textContent = data.port || '—';
-  document.getElementById('gwUptime').textContent = fmtTime(data.uptime_seconds);
-  document.getElementById('gwStatus').textContent = 'Online';
+  if (data && data.token) {
+    document.getElementById('gatewayToken').textContent = data.token;
+  }
 }
 
 function copyToken() {
@@ -2754,7 +2885,25 @@ async function regenerateToken() {
 // ══════════════════════════════════════════════════════════════════
 
 async function loadDoctor() {
-  const data = await api('/v1/doctor');
+  // Fetch gateway status (public, no auth) and doctor checks in parallel
+  const [healthData, data] = await Promise.all([
+    (async () => { try { const r = await fetch('/health'); return await r.json(); } catch(e) { return null; } })(),
+    api('/v1/doctor'),
+  ]);
+
+  // Populate gateway status cards
+  if (healthData && healthData.status === 'ok') {
+    document.getElementById('hGateway').textContent = 'Online';
+    document.getElementById('hGateway').style.color = 'var(--green)';
+    document.getElementById('hUptime').textContent = fmtTime(healthData.uptime_seconds);
+    document.getElementById('hPort').textContent = ':' + (healthData.port || '—');
+    document.getElementById('hAgents').textContent = healthData.agents || 0;
+  } else {
+    document.getElementById('hGateway').textContent = 'Offline';
+    document.getElementById('hGateway').style.color = 'var(--red)';
+  }
+
+  // Populate diagnostic checks
   const el = document.getElementById('healthChecks');
   if (!data || !data.checks) { el.innerHTML = '<li class="empty">Could not run health checks</li>'; return; }
 
