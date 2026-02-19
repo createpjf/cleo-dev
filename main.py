@@ -9,7 +9,12 @@ Usage:
   swarm status                # show task board
   swarm scores                # show reputation scores
   swarm doctor                # system health check
-  swarm gateway               # start HTTP gateway (foreground)
+  swarm gateway [start]       # start HTTP gateway (foreground)
+  swarm gateway status        # gateway status + health probe
+  swarm gateway stop          # stop gateway process
+  swarm gateway restart       # restart gateway
+  swarm gateway install       # install as background daemon
+  swarm gateway uninstall     # remove background daemon
   swarm agents add <name>     # add an agent to the team
   swarm chain status           # on-chain identity status
   swarm chain init <agent>     # initialize agent on-chain
@@ -21,6 +26,7 @@ Chat commands:
   /config     — show current agent team
   /status     — task board
   /scores     — reputation scores
+  /gateway    — gateway status & control
   /doctor     — system health check
   /clear      — clear task history
   /help       — show commands
@@ -89,19 +95,20 @@ def interactive_main():
     console.print(f"  [dim]Agents: {agent_names}[/dim]")
 
     # ── Auto-start Gateway (daemon) ──
-    try:
-        from core.gateway import start_gateway, DEFAULT_PORT
-        gw_port = int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
-        gw_token = os.environ.get("SWARM_GATEWAY_TOKEN", "")
-        gw_server = start_gateway(port=gw_port, token=gw_token, daemon=True)
-        if gw_server:
-            console.print(f"  [dim]Gateway: http://127.0.0.1:{gw_port}/[/dim]")
-            if gw_token:
-                console.print(f"  [dim]Token:   {gw_token}[/dim]")
-        else:
-            console.print(f"  [yellow]Gateway: failed to start on port {gw_port}[/yellow]")
-    except Exception as e:
-        console.print(f"  [yellow]Gateway: {e}[/yellow]")
+    if "--no-gateway" not in sys.argv:
+        try:
+            from core.gateway import start_gateway, DEFAULT_PORT
+            gw_port = int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
+            gw_token = os.environ.get("SWARM_GATEWAY_TOKEN", "")
+            gw_server = start_gateway(port=gw_port, token=gw_token, daemon=True)
+            if gw_server:
+                console.print(f"  [dim]Gateway:[/dim] [bold]http://127.0.0.1:{gw_port}/[/bold]  [dim]/gateway for status[/dim]")
+            else:
+                console.print(f"  [yellow]Gateway: port {gw_port} in use (use --force or /gateway restart)[/yellow]")
+        except Exception as e:
+            console.print(f"  [yellow]Gateway: {e}[/yellow]")
+    else:
+        console.print(f"  [dim]Gateway: skipped (--no-gateway)[/dim]")
     console.print()
 
     # ── Chat loop ──
@@ -150,6 +157,7 @@ def interactive_main():
                 ("/config history",  _t("help.config_hist")),
                 ("/config rollback", _t("help.config_roll")),
                 ("/configure",       _t("help.configure")),
+                ("/gateway",         _t("help.gateway")),
                 ("/chain",           _t("help.chain")),
                 ("/doctor",          _t("help.doctor")),
                 ("/clear",           _t("help.clear")),
@@ -370,6 +378,55 @@ def interactive_main():
                 console.print(f"  [green]{_t('config.rolled_back')}[/green] Agents: {', '.join(a['id'] for a in agents)}\n")
             else:
                 console.print(f"  [red]{_t('config.rollback_fail')}[/red]\n")
+            continue
+
+        if cmd and cmd.startswith("gateway"):
+            parts = cmd.split()
+            gw_action = parts[1] if len(parts) > 1 else "status"
+            if gw_action == "status":
+                _show_gateway_status(console)
+            elif gw_action == "stop":
+                from core.gateway import kill_port, DEFAULT_PORT
+                gw_port = int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
+                from core.i18n import t as _t
+                console.print(f"  [dim]{_t('gw.stopping')}[/dim]")
+                killed = kill_port(gw_port)
+                if killed:
+                    console.print(f"  [green]\u2713[/green] Gateway stopped\n")
+                else:
+                    console.print(f"  [dim]{_t('gw.not_running')}[/dim]\n")
+            elif gw_action == "restart":
+                from core.gateway import kill_port, start_gateway, DEFAULT_PORT
+                gw_port = int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
+                gw_token = os.environ.get("SWARM_GATEWAY_TOKEN", "")
+                from core.i18n import t as _t
+                console.print(f"  [dim]{_t('gw.restarting')}[/dim]")
+                kill_port(gw_port)
+                import time as _time
+                _time.sleep(0.5)
+                srv = start_gateway(port=gw_port, token=gw_token, daemon=True)
+                if srv:
+                    console.print(f"  [green]\u2713[/green] {_t('gw.started')} — http://127.0.0.1:{gw_port}/\n")
+                else:
+                    console.print(f"  [red]\u2717[/red] {_t('gw.port_in_use', port=gw_port)}\n")
+            elif gw_action == "install":
+                from core.gateway import generate_token, DEFAULT_PORT
+                from core.daemon import install_daemon
+                gw_port = int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
+                gw_token = os.environ.get("SWARM_GATEWAY_TOKEN", "")
+                if not gw_token:
+                    gw_token = generate_token()
+                ok, msg = install_daemon(gw_port, gw_token)
+                icon = "[green]\u2713[/green]" if ok else "[red]\u2717[/red]"
+                console.print(f"  {icon} {msg}\n")
+            elif gw_action == "uninstall":
+                from core.daemon import uninstall_daemon
+                ok, msg = uninstall_daemon()
+                icon = "[green]\u2713[/green]" if ok else "[red]\u2717[/red]"
+                console.print(f"  {icon} {msg}\n")
+            else:
+                # Default: show status
+                _show_gateway_status(console)
             continue
 
         if cmd and cmd.startswith("chain"):
@@ -769,9 +826,213 @@ def cmd_usage(console=None):
               f"${agg.get('total_cost_usd', 0):.4f}")
 
 
-def cmd_gateway():
-    from core.gateway import run_gateway_cli
-    run_gateway_cli()
+def cmd_gateway(action: str = "start", port: int = 0, token: str = "",
+                 force: bool = False):
+    """Gateway lifecycle management (OpenClaw-style subcommands)."""
+    from core.gateway import DEFAULT_PORT
+    from core.i18n import t as _t
+
+    port = port or int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
+    token = token or os.environ.get("SWARM_GATEWAY_TOKEN", "")
+
+    try:
+        from rich.console import Console
+        console = Console()
+    except ImportError:
+        console = None
+
+    if action in ("start", "run"):
+        # ── Force kill existing process on port ──
+        if force:
+            from core.gateway import kill_port
+            if console:
+                console.print(f"  [dim]{_t('gw.killing_port', port=port)}[/dim]")
+            kill_port(port)
+
+        from core.gateway import run_gateway_cli
+        run_gateway_cli(port=port, token=token)
+
+    elif action == "status":
+        _show_gateway_status(console, port)
+
+    elif action == "stop":
+        from core.gateway import kill_port
+        if console:
+            console.print(f"  [dim]{_t('gw.stopping')}[/dim]")
+        killed = kill_port(port)
+        if killed:
+            if console:
+                console.print(f"  [green]\u2713[/green] Gateway stopped on port {port}")
+            else:
+                print(f"  Gateway stopped on port {port}")
+        else:
+            if console:
+                console.print(f"  [dim]{_t('gw.not_running')}[/dim]")
+            else:
+                print(f"  {_t('gw.not_running')}")
+
+    elif action == "restart":
+        from core.gateway import kill_port
+        if console:
+            console.print(f"  [dim]{_t('gw.restarting')}[/dim]")
+        kill_port(port)
+        import time as _time
+        _time.sleep(0.5)
+        from core.gateway import run_gateway_cli
+        run_gateway_cli(port=port, token=token)
+
+    elif action == "install":
+        from core.gateway import generate_token
+        from core.daemon import install_daemon
+        if not token:
+            token = generate_token()
+        ok, msg = install_daemon(port, token)
+        if console:
+            icon = "[green]\u2713[/green]" if ok else "[red]\u2717[/red]"
+            console.print(f"  {icon} {msg}")
+            if ok:
+                console.print(f"  [dim]Port: {port}  Token: {token}[/dim]")
+        else:
+            print(f"  {'OK' if ok else 'FAIL'}: {msg}")
+
+    elif action == "uninstall":
+        from core.daemon import uninstall_daemon
+        ok, msg = uninstall_daemon()
+        if console:
+            icon = "[green]\u2713[/green]" if ok else "[red]\u2717[/red]"
+            console.print(f"  {icon} {msg}")
+        else:
+            print(f"  {'OK' if ok else 'FAIL'}: {msg}")
+
+    else:
+        print(f"Unknown gateway action: {action}")
+        print("Available: start, stop, restart, status, install, uninstall")
+
+
+def _show_gateway_status(console, port: int = 0):
+    """Rich gateway status display — service state + RPC probe + agents."""
+    from core.gateway import DEFAULT_PORT, probe_gateway
+    from core.daemon import daemon_status
+    from core.i18n import t as _t
+
+    port = port or int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
+
+    # Probe the gateway
+    probe = probe_gateway(port)
+
+    # Check daemon status
+    daemon_ok, daemon_msg = daemon_status()
+
+    if console:
+        from rich.panel import Panel
+        from rich.table import Table
+        from rich import box
+
+        tbl = Table(show_header=False, show_edge=False, box=None,
+                     padding=(0, 1), expand=False)
+        tbl.add_column("key", style="bold", min_width=16)
+        tbl.add_column("val")
+
+        # ── Connection status ──
+        if probe["reachable"]:
+            tbl.add_row(
+                "Status",
+                f"[green]{_t('gw.running')}[/green]",
+            )
+            tbl.add_row(_t("gw.url"), f"http://127.0.0.1:{port}/")
+
+            # Mask token for display
+            token = os.environ.get("SWARM_GATEWAY_TOKEN", "")
+            if token:
+                masked = token[:10] + "..." + token[-4:] if len(token) > 16 else "***"
+                tbl.add_row(_t("gw.token"), f"[dim]{masked}[/dim]")
+
+            # Uptime
+            uptime_s = probe.get("uptime_seconds", 0)
+            if uptime_s < 60:
+                uptime_str = f"{uptime_s:.0f}s"
+            elif uptime_s < 3600:
+                m, s = divmod(int(uptime_s), 60)
+                uptime_str = f"{m}m{s:02d}s"
+            else:
+                h, rem = divmod(int(uptime_s), 3600)
+                m = rem // 60
+                uptime_str = f"{h}h{m:02d}m"
+            tbl.add_row(_t("gw.uptime"), uptime_str)
+
+            # Agents
+            online = probe.get("agents_online", 0)
+            total = probe.get("agents_total", 0)
+            if total > 0:
+                tbl.add_row(
+                    "Agents",
+                    f"[green]{online}[/green]/{total} online",
+                )
+            else:
+                tbl.add_row("Agents", f"[dim]{_t('gw.no_agents')}[/dim]")
+
+            # Active tasks
+            task_count = probe.get("task_count", 0)
+            active = probe.get("active_tasks", 0)
+            if task_count > 0:
+                tbl.add_row("Tasks", f"{active} active / {task_count} total")
+
+            # Agent detail rows
+            for ag in probe.get("agents", []):
+                aid = ag.get("agent_id", "?")
+                online_flag = "[green]●[/green]" if ag.get("online") else "[dim]○[/dim]"
+                status = ag.get("status", "idle")
+                task_id = ag.get("task_id", "")
+                detail = f"{status}"
+                if task_id:
+                    detail += f" ({task_id[:8]})"
+                tbl.add_row(f"  {online_flag} {aid}", f"[dim]{detail}[/dim]")
+
+        else:
+            tbl.add_row(
+                "Status",
+                f"[red]{_t('gw.stopped')}[/red]",
+            )
+            tbl.add_row("Port", str(port))
+            error = probe.get("error", "")
+            if error:
+                tbl.add_row("Error", f"[dim]{error}[/dim]")
+
+        # Daemon status
+        tbl.add_row("", "")  # spacer
+        if daemon_ok:
+            tbl.add_row("Service", f"[green]{_t('gw.daemon_running')}[/green]")
+        elif "Not installed" in daemon_msg:
+            tbl.add_row("Service", f"[dim]{_t('gw.daemon_not_inst')}[/dim]")
+        else:
+            tbl.add_row("Service", f"[yellow]{daemon_msg}[/yellow]")
+
+        # Key endpoints
+        tbl.add_row("", "")  # spacer
+        tbl.add_row(
+            _t("gw.endpoints"),
+            "[dim]POST /v1/task · GET /v1/status · GET /v1/events[/dim]",
+        )
+
+        console.print()
+        console.print(Panel(
+            tbl,
+            title=f"[bold magenta]{_t('gw.title')}[/bold magenta]",
+            border_style="magenta",
+            box=box.ROUNDED,
+        ))
+        console.print()
+    else:
+        # Plain text fallback
+        if probe["reachable"]:
+            print(f"\n  Gateway: RUNNING on http://127.0.0.1:{port}/")
+            print(f"  Uptime: {probe.get('uptime_seconds', 0):.0f}s")
+            print(f"  Agents: {probe.get('agents_online', 0)}/{probe.get('agents_total', 0)} online")
+        else:
+            print(f"\n  Gateway: STOPPED (port {port})")
+            print(f"  Error: {probe.get('error', '?')}")
+        print(f"  Daemon: {daemon_msg}")
+        print()
 
 
 def cmd_agents_add(name: str):
@@ -1013,7 +1274,17 @@ def main():
     sub.add_parser("status", help="Show task board")
     sub.add_parser("scores", help="Show reputation scores")
     sub.add_parser("doctor", help="System health check")
-    sub.add_parser("gateway", help="Start HTTP gateway (foreground)")
+    p_gw = sub.add_parser("gateway", help="Gateway management")
+    p_gw.add_argument("action", nargs="?", default="start",
+                       choices=["start", "stop", "restart", "status",
+                                "install", "uninstall"],
+                       help="Gateway action (default: start)")
+    p_gw.add_argument("-p", "--port", type=int, default=0,
+                       help="Port (default: 19789 or SWARM_GATEWAY_PORT)")
+    p_gw.add_argument("-t", "--token", default="",
+                       help="Bearer token (default: auto-generate)")
+    p_gw.add_argument("--force", action="store_true",
+                       help="Kill existing process on port before starting")
 
     p_agents = sub.add_parser("agents", help="Agent management")
     agents_sub = p_agents.add_subparsers(dest="agents_cmd")
@@ -1044,7 +1315,8 @@ def main():
     elif args.cmd == "doctor":
         cmd_doctor()
     elif args.cmd == "gateway":
-        cmd_gateway()
+        cmd_gateway(action=args.action, port=args.port,
+                    token=args.token, force=args.force)
     elif args.cmd == "chain":
         cmd_chain(args.action, args.agent_id)
     elif args.cmd == "agents":

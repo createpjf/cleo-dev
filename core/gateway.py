@@ -1500,3 +1500,105 @@ def run_gateway_cli(port: int = 0, token: str = ""):
     print()
 
     start_gateway(port=port, token=token, daemon=False)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  GATEWAY LIFECYCLE HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def probe_gateway(port: int = 0) -> dict:
+    """
+    Deep probe — health check + heartbeat + task count.
+    Returns a rich status dict for display.
+    """
+    import httpx
+
+    port = port or int(os.environ.get("SWARM_GATEWAY_PORT", str(DEFAULT_PORT)))
+    base = f"http://127.0.0.1:{port}"
+    result = {
+        "reachable": False,
+        "port": port,
+        "url": base,
+    }
+
+    # Health probe
+    try:
+        resp = httpx.get(f"{base}/health", timeout=3.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            result["reachable"] = True
+            result["agents_count"] = data.get("agents", 0)
+            result["uptime_seconds"] = data.get("uptime_seconds", 0)
+        else:
+            result["error"] = f"HTTP {resp.status_code}"
+            return result
+    except httpx.ConnectError:
+        result["error"] = "Cannot connect"
+        return result
+    except Exception as e:
+        result["error"] = str(e)
+        return result
+
+    # Heartbeat probe (requires token — try without, tolerate 401)
+    token = os.environ.get("SWARM_GATEWAY_TOKEN", "")
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    try:
+        resp = httpx.get(f"{base}/v1/heartbeat", headers=headers, timeout=3.0)
+        if resp.status_code == 200:
+            hb = resp.json()
+            result["agents_online"] = hb.get("online", 0)
+            result["agents_total"] = hb.get("total", 0)
+            result["agents"] = hb.get("agents", [])
+    except Exception:
+        pass
+
+    # Task count
+    try:
+        resp = httpx.get(f"{base}/v1/status", headers=headers, timeout=3.0)
+        if resp.status_code == 200:
+            tasks = resp.json().get("tasks", {})
+            result["task_count"] = len(tasks)
+            result["active_tasks"] = sum(
+                1 for t in tasks.values()
+                if t.get("status") in ("pending", "claimed", "review")
+            )
+    except Exception:
+        pass
+
+    return result
+
+
+def kill_port(port: int) -> bool:
+    """Kill whatever process is listening on the given port. Returns True if killed."""
+    import subprocess
+    import signal
+
+    try:
+        # lsof to find PID
+        result = subprocess.run(
+            ["lsof", "-ti", f"tcp:{port}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        pids = result.stdout.strip().split()
+        if not pids:
+            return False
+        for pid in pids:
+            try:
+                os.kill(int(pid), signal.SIGTERM)
+            except (ProcessLookupError, ValueError):
+                pass
+        time.sleep(0.5)
+        return True
+    except FileNotFoundError:
+        # lsof not available — try fuser (Linux)
+        try:
+            subprocess.run(
+                ["fuser", "-k", f"{port}/tcp"],
+                capture_output=True, timeout=5,
+            )
+            time.sleep(0.5)
+            return True
+        except Exception:
+            return False
+    except Exception:
+        return False
