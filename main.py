@@ -41,6 +41,8 @@ Chat commands:
   exit        — quit
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
