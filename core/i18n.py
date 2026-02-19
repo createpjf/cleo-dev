@@ -215,6 +215,19 @@ _STRINGS = {
     # ── Doctor repair ─────────────────────────────────────────────────
     "doctor.repair_title": {"en": "Auto-Repair",             "zh": "自动修复"},
     "doctor.deep_title":   {"en": "Deep Diagnostics",        "zh": "深度诊断"},
+    # ── Cron & Exec ───────────────────────────────────────────────────
+    "cron.title":          {"en": "Cron Scheduler",          "zh": "定时调度器"},
+    "cron.no_jobs":        {"en": "No scheduled jobs",       "zh": "没有定时任务"},
+    "exec.blocked":        {"en": "Command blocked",         "zh": "命令被拦截"},
+    "exec.allowed":        {"en": "Command executed",        "zh": "命令已执行"},
+    # ── Tools ────────────────────────────────────────────────────────
+    "tools.title":         {"en": "Built-in Tools",          "zh": "内置工具"},
+    "tools.enabled":       {"en": "Tool enabled",            "zh": "工具已启用"},
+    "tools.disabled":      {"en": "Tool disabled",           "zh": "工具已禁用"},
+    "tools.no_env":        {"en": "Missing API key",         "zh": "缺少 API 密钥"},
+    "tools.profile_set":   {"en": "Tool profile set",        "zh": "工具配置已设置"},
+    "tools.test_ok":       {"en": "Tool test passed",        "zh": "工具测试通过"},
+    "tools.test_fail":     {"en": "Tool test failed",        "zh": "工具测试失败"},
 }
 
 

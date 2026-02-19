@@ -67,7 +67,10 @@ class AgentConfig:
     # Episodic + knowledge base memory settings
     episodic_recall_budget: int  = 1500   # token budget for episodic recall
     kb_recall_budget:       int  = 800    # token budget for knowledge base recall
-    cognition_file:         str  = ""     # path to cognition.md (optional)
+    cognition_file:         str  = ""     # path to cognition.md (legacy, optional)
+    soul_file:              str  = ""     # path to soul.md (OpenClaw pattern, optional)
+    # Tool configuration (OpenClaw-inspired)
+    tools_config:           dict = field(default_factory=dict)  # {profile, allow, deny}
 
 
 class BaseAgent:
@@ -94,25 +97,55 @@ class BaseAgent:
         self.kb           = kb
         self._short_term: list[dict] = []  # conversation window
         self._cognition: str = ""          # cached cognition profile
+        self._soul: str = ""               # cached soul.md (OpenClaw pattern)
         os.makedirs(MAILBOX_DIR, exist_ok=True)
-        # Load cognition profile if configured
-        self._load_cognition()
+        # Load soul + cognition profiles
+        self._load_soul()
 
-    def _load_cognition(self):
-        """Load the agent's cognition profile from docs/{agent_id}/cognition.md."""
-        paths_to_try = [
+    def _load_soul(self):
+        """Load agent personality — prefers soul.md (OpenClaw pattern), falls back to cognition.md.
+
+        Search order for soul.md:
+          1. Explicit soul_file path from config
+          2. docs/{agent_id}/soul.md
+          3. docs/shared/soul.md
+
+        Fallback to cognition.md (legacy):
+          1. Explicit cognition_file path from config
+          2. docs/{agent_id}/cognition.md
+          3. docs/shared/cognition.md
+        """
+        # Try soul.md first (OpenClaw pattern)
+        soul_paths = [
+            self.cfg.soul_file,
+            os.path.join("docs", self.cfg.agent_id, "soul.md"),
+            os.path.join("docs", "shared", "soul.md"),
+        ]
+        for p in soul_paths:
+            if p and os.path.exists(p):
+                try:
+                    with open(p) as f:
+                        self._soul = f.read().strip()
+                    logger.info("[%s] loaded soul from %s",
+                                self.cfg.agent_id, p)
+                    break
+                except OSError:
+                    continue
+
+        # Fallback: cognition.md (legacy)
+        cognition_paths = [
             self.cfg.cognition_file,
             os.path.join("docs", self.cfg.agent_id, "cognition.md"),
             os.path.join("docs", "shared", "cognition.md"),
         ]
-        for p in paths_to_try:
+        for p in cognition_paths:
             if p and os.path.exists(p):
                 try:
                     with open(p) as f:
                         self._cognition = f.read().strip()
                     logger.info("[%s] loaded cognition from %s",
                                 self.cfg.agent_id, p)
-                    return
+                    break
                 except OSError:
                     continue
 
@@ -123,9 +156,10 @@ class BaseAgent:
         2. Load reference documents (per-agent + shared)
         3. Get shared context snapshot from all agents
         4. Long-term memory recall (episodic + knowledge base)
-        5. Build system prompt: role + cognition + skills + docs + memory + context
+        5. Build system prompt: role + cognition + skills + tools + docs + memory + context
         6. Call LLM adapter
-        7. Store episode + publish to context bus
+        7. Tool execution loop (parse tool calls → execute → feed back)
+        8. Store episode + publish to context bus
         """
         # 1. Skills
         skills_text = self.skill_loader.load(self.cfg.skills, self.cfg.agent_id)
@@ -143,15 +177,33 @@ class BaseAgent:
 
         # 5. System prompt with all layers
         docs_section = f"\n\n## Reference Documents\n{docs_text}" if docs_text else ""
-        cognition_section = (f"\n\n## Cognitive Profile\n{self._cognition}"
-                             if self._cognition else "")
+        # Soul.md (OpenClaw pattern) takes precedence; cognition.md is fallback
+        soul_section = ""
+        if self._soul:
+            soul_section = f"\n\n## Soul\n{self._soul}"
+        elif self._cognition:
+            soul_section = f"\n\n## Cognitive Profile\n{self._cognition}"
         memory_block = f"\n\n{memory_section}" if memory_section else ""
+
+        # 5b. Tools prompt (OpenClaw-inspired tool system)
+        tools_section = ""
+        tools_cfg = self.cfg.tools_config
+        if tools_cfg:
+            try:
+                from core.tools import build_tools_prompt
+                tools_prompt = build_tools_prompt({"tools": tools_cfg})
+                if tools_prompt:
+                    tools_section = f"\n\n{tools_prompt}"
+            except Exception as e:
+                logger.warning("[%s] tools prompt build failed: %s",
+                               self.cfg.agent_id, e)
 
         system_prompt = (
             f"You are {self.cfg.agent_id}.\n\n"
             f"## Role\n{self.cfg.role}"
-            f"{cognition_section}\n\n"
+            f"{soul_section}\n\n"
             f"## Skills\n{skills_text}"
+            f"{tools_section}"
             f"{docs_section}"
             f"{memory_block}\n\n"
             f"## Shared Context\n{context_snap}\n"
@@ -168,7 +220,7 @@ class BaseAgent:
         # Current task
         messages.append({"role": "user", "content": task.description})
 
-        # 5a. Context compaction (if history is too long)
+        # 5c. Context compaction (if history is too long)
         if self.cfg.compaction_enabled:
             try:
                 from core.compaction import compact_history, needs_compaction
@@ -188,6 +240,10 @@ class BaseAgent:
         # 6. Call LLM (streaming if available, with partial result updates)
         result = await self._call_llm_streaming(messages, task)
 
+        # 7. Tool execution loop — parse tool calls, execute, feed back results
+        if tools_cfg:
+            result = await self._tool_loop(messages, task, result)
+
         # Update short-term memory
         self._short_term.append({"role": "user", "content": task.description})
         self._short_term.append({"role": "assistant", "content": result})
@@ -196,10 +252,10 @@ class BaseAgent:
         if len(self._short_term) > max_entries:
             self._short_term = self._short_term[-max_entries:]
 
-        # 7a. Store to long-term memory (episodic + vector)
+        # 8a. Store to long-term memory (episodic + vector)
         self._store_to_memory(task, result)
 
-        # 7b. Publish to context bus
+        # 8b. Publish to context bus
         bus.publish(self.cfg.agent_id, "last_result", result)
 
         logger.info("[%s] task completed, result length=%d",
@@ -236,6 +292,68 @@ class BaseAgent:
 
         # Fallback: non-streaming
         return await self.llm.chat(messages, self.cfg.model)
+
+    async def _tool_loop(self, messages: list[dict], task: "Task",
+                         initial_result: str,
+                         max_rounds: int = 5) -> str:
+        """
+        Tool execution loop — parse tool calls from LLM output, execute them,
+        feed results back to the LLM for a follow-up response.
+
+        Stops when:
+        - No tool calls found in response (agent is done)
+        - Max rounds reached (prevent infinite loops)
+        """
+        try:
+            from core.tools import parse_tool_calls, execute_tool_calls
+        except ImportError:
+            return initial_result
+
+        result = initial_result
+        tools_agent_cfg = {"tools": self.cfg.tools_config}
+
+        for round_num in range(max_rounds):
+            # Parse tool invocations from agent output
+            calls = parse_tool_calls(result)
+            if not calls:
+                break  # No tool calls — agent is done
+
+            logger.info("[%s] tool round %d: %d call(s) — %s",
+                        self.cfg.agent_id, round_num + 1, len(calls),
+                        [c["tool"] for c in calls])
+
+            # Execute all tool calls
+            tool_results = execute_tool_calls(calls, tools_agent_cfg)
+
+            # Build tool results message
+            results_text = []
+            for tr in tool_results:
+                tool_name = tr["tool"]
+                tool_result = tr["result"]
+                status = "✓" if tool_result.get("ok") else "✗"
+                result_json = json.dumps(tool_result, indent=2,
+                                         ensure_ascii=False, default=str)
+                results_text.append(
+                    f"### Tool Result: {tool_name} [{status}]\n"
+                    f"```json\n{result_json}\n```"
+                )
+
+            tool_feedback = (
+                "## Tool Execution Results\n\n"
+                + "\n\n".join(results_text)
+                + "\n\nContinue with your task using the tool results above. "
+                "If you need more tools, invoke them. "
+                "Otherwise, provide your final answer."
+            )
+
+            # Append assistant response + tool feedback to messages
+            messages.append({"role": "assistant", "content": result})
+            messages.append({"role": "user", "content": tool_feedback})
+
+            # Call LLM again with tool results
+            result = await self._call_llm_streaming(messages, task)
+
+        return result
 
     def _recall_long_term(self, query: str) -> str:
         """
