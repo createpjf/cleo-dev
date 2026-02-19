@@ -152,9 +152,9 @@ def check_dependencies() -> tuple[bool, str, str]:
     for mod, label in optional.items():
         try:
             importlib.import_module(mod)
-            opt_status.append(f"{label} ✓")
+            opt_status.append(f"{label} ok")
         except ImportError:
-            opt_status.append(f"{label} ✗")
+            opt_status.append(f"{label} missing")
 
     return True, "Dependencies", f"All required OK  ({', '.join(opt_status)})"
 
@@ -175,14 +175,14 @@ def check_memory_backend() -> tuple[bool, str, str]:
     if backend == "chroma":
         try:
             import chromadb  # noqa: F401
-            return True, "Memory", "ChromaDB ✓"
+            return True, "Memory", "ChromaDB [ok]"
         except (ImportError, Exception):
             return False, "Memory", "ChromaDB configured but not loadable — pip3 install chromadb"
 
     if backend == "hybrid":
         try:
             import chromadb  # noqa: F401
-            return True, "Memory", "Hybrid (Vector + BM25) ✓"
+            return True, "Memory", "Hybrid (Vector + BM25) [ok]"
         except (ImportError, Exception):
             return True, "Memory", "Hybrid (BM25 only — install chromadb for vector search)"
 
@@ -373,7 +373,7 @@ def _print_rich(console, results: list[tuple[bool, str, str]]):
     total = len(results)
 
     for ok, label, detail in results:
-        icon = "[green]✓[/green]" if ok else "[red]✗[/red]"
+        icon = "[green]+[/green]" if ok else "[red]x[/red]"
         lines.append(f"  {icon} [bold]{label:14}[/bold] [dim]{detail}[/dim]")
 
     body = "\n".join(lines)
@@ -454,12 +454,12 @@ def _offer_auto_fix(console, fixable: list[str]):
                 capture_output=True, text=True, timeout=120,
             )
             if result.returncode == 0:
-                console.print(f"  [green]✓[/green] {_t('doctor.installed', pkg=pkg)}")
+                console.print(f"  [green]+[/green] {_t('doctor.installed', pkg=pkg)}")
             else:
-                console.print(f"  [red]✗[/red] {_t('doctor.install_fail', pkg=pkg)}")
+                console.print(f"  [red]x[/red] {_t('doctor.install_fail', pkg=pkg)}")
                 if result.stderr:
                     console.print(f"    [dim]{result.stderr.strip()[:100]}[/dim]")
         except Exception as e:
-            console.print(f"  [red]✗[/red] {_t('doctor.install_fail', pkg=pkg)}: {e}")
+            console.print(f"  [red]x[/red] {_t('doctor.install_fail', pkg=pkg)}: {e}")
 
     console.print()

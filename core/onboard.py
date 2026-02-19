@@ -4,7 +4,7 @@ Interactive onboarding wizard — OpenClaw-inspired.
 Uses questionary for arrow-key selection menus.
 
 Two modes:
-  - Quick setup (run_quick_setup): first-run → ready to chat
+  - Quick setup (run_quick_setup): first-run ->ready to chat
   - Full wizard (run_onboard):     per-agent config with independent LLM
 """
 
@@ -328,7 +328,7 @@ def _wizard_advanced():
             "skills": skills, "provider": provider,
             "api_key": api_key,
         })
-        console.print(f"  [{C_OK}]✓[/{C_OK}] {agent_id} → {PROVIDERS[provider]['label']}/{model}")
+        console.print(f"  [{C_OK}]+[/{C_OK}] {agent_id} ->{PROVIDERS[provider]['label']}/{model}")
 
     # ── Step 2: Memory & Chain ──
     console.print(f"\n  [{C_ACCENT}]Step 2/5 · Memory & Chain[/{C_ACCENT}]")
@@ -377,24 +377,22 @@ def _wizard_advanced():
 
 # Section definitions: (value, label, description, icon)
 _SECTIONS = [
-    # (value, label, description, icon)
-    # NOTE: icons must all be single-emoji (no variation selectors) for alignment
-    ("model",       "Model",       "Change LLM provider, API key, or default model", "🤖"),
-    ("agents",      "Agents",      "Add, remove, or edit individual agents",          "👥"),
-    ("skills",      "Skills",      "Install, manage, and assign agent skills",        "📚"),
-    ("memory",      "Memory",      "Switch memory backend (mock / chroma / hybrid)",  "🧠"),
-    ("resilience",  "Resilience",  "Retry count, circuit breaker, backoff timing",    "🛡"),
-    ("compaction",  "Compaction",  "Context window compaction settings",              "📦"),
-    ("gateway",     "Gateway",     "Port, auth token, daemon settings",               "🌐"),
-    ("chain",       "Chain",       "On-chain reputation (ERC-8004)",                  "⛓"),
-    ("health",      "Health check","Run doctor diagnostics",                          "🩺"),
+    # (value, label, description)
+    ("model",       "Model",       "Change LLM provider, API key, or default model"),
+    ("agents",      "Agents",      "Add, remove, or edit individual agents"),
+    ("skills",      "Skills",      "Install, manage, and assign agent skills"),
+    ("memory",      "Memory",      "Switch memory backend (mock / chroma / hybrid)"),
+    ("resilience",  "Resilience",  "Retry count, circuit breaker, backoff timing"),
+    ("compaction",  "Compaction",  "Context window compaction settings"),
+    ("gateway",     "Gateway",     "Port, auth token, daemon settings"),
+    ("chain",       "Chain",       "On-chain reputation (ERC-8004)"),
+    ("health",      "Health check","Run doctor diagnostics"),
 ]
 
 
 def _wizard_sections():
     """OpenClaw-style sectional configure — loop until user exits."""
-    _icon_map = {v: ic for v, _, _, ic in _SECTIONS}
-    _label_map = {v: lb for v, lb, _, _ in _SECTIONS}
+    _label_map = {v: lb for v, lb, _ in _SECTIONS}
 
     while True:
         console.print()
@@ -402,14 +400,14 @@ def _wizard_sections():
         # ── Section selector (checkbox) ──
         choices = [
             questionary.Choice(
-                f"{icon} {label:<14s}({desc})",
+                f"{label:<14s}({desc})",
                 value=value,
                 checked=False,
             )
-            for value, label, desc, icon in _SECTIONS
+            for value, label, desc in _SECTIONS
         ]
         choices.append(questionary.Choice(
-            "✅ Done — save & exit",
+            "[Done] — save & exit",
             value="_exit",
             checked=False,
         ))
@@ -432,13 +430,12 @@ def _wizard_sections():
 
         # ── Run each selected section handler ──
         for i, section in enumerate(selected):
-            icon  = _icon_map.get(section, "⚙️")
             label = _label_map.get(section, section.title())
 
             # Section separator
             console.print()
             console.print(f"  [{C_ACCENT}]{'─' * 50}[/{C_ACCENT}]")
-            console.print(f"  {icon}  [{C_ACCENT}]{label}[/{C_ACCENT}]"
+            console.print(f"  [{C_ACCENT}]{label}[/{C_ACCENT}]"
                            f"  [{C_DIM}]({i+1}/{len(selected)})[/{C_DIM}]")
             console.print(f"  [{C_ACCENT}]{'─' * 50}[/{C_ACCENT}]")
             console.print()
@@ -463,10 +460,10 @@ def _wizard_sections():
             pass
 
         console.print()
-        console.print(f"  [{C_OK}]✓[/{C_OK}] Config saved → {CONFIG_PATH}")
+        console.print(f"  [{C_OK}]+[/{C_OK}] Config saved -> {CONFIG_PATH}")
         # Loop back to section selector
 
-    console.print(f"\n  [{C_OK}]✓[/{C_OK}] Configuration complete.\n")
+    console.print(f"\n  [{C_OK}]+[/{C_OK}] Configuration complete.\n")
 
 
 def _section_model(cfg: dict):
@@ -501,11 +498,11 @@ def _section_model(cfg: dict):
             for a in agents:
                 a["model"] = model
                 a.setdefault("llm", {})["provider"] = provider
-            console.print(f"  [{C_OK}]✓[/{C_OK}] Updated {len(agents)} agents → {provider}/{model}")
+            console.print(f"  [{C_OK}]+[/{C_OK}] Updated {len(agents)} agents ->{provider}/{model}")
         else:
             console.print(f"  [{C_DIM}]Global provider set to {provider}. Agent models unchanged.[/{C_DIM}]")
 
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Provider: {provider}, Model: {model}")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Provider: {provider}, Model: {model}")
 
 
 def _section_agents(cfg: dict):
@@ -598,7 +595,7 @@ def _section_agents_edit(cfg: dict, agents: list, global_provider: str):
             model = _ask_model(p, api_key)
             if model:
                 agent["model"] = model
-                console.print(f"  [{C_OK}]✓[/{C_OK}] Model → {model}")
+                console.print(f"  [{C_OK}]+[/{C_OK}] Model ->{model}")
 
     if "fallback" in fields:
         current_fb = agent.get("fallback_models", [])
@@ -626,7 +623,7 @@ def _section_agents_edit(cfg: dict, agents: list, global_provider: str):
                 ).ask()
                 if new_fb is not None:
                     agent["fallback_models"] = new_fb
-                    console.print(f"  [{C_OK}]✓[/{C_OK}] Fallbacks → {', '.join(new_fb) if new_fb else 'none'}")
+                    console.print(f"  [{C_OK}]+[/{C_OK}] Fallbacks ->{', '.join(new_fb) if new_fb else 'none'}")
         else:
             fb_text = questionary.text(
                 "Fallback models (comma-separated):",
@@ -646,7 +643,7 @@ def _section_agents_edit(cfg: dict, agents: list, global_provider: str):
         ).ask()
         if new_role:
             agent["role"] = new_role
-            console.print(f"  [{C_OK}]✓[/{C_OK}] Role updated")
+            console.print(f"  [{C_OK}]+[/{C_OK}] Role updated")
 
     if "skills" in fields:
         current_skills = agent.get("skills", [])
@@ -673,7 +670,7 @@ def _section_agents_edit(cfg: dict, agents: list, global_provider: str):
         ).ask()
         if new_skills is not None:
             agent["skills"] = new_skills
-            console.print(f"  [{C_OK}]✓[/{C_OK}] Skills → {', '.join(new_skills)}")
+            console.print(f"  [{C_OK}]+[/{C_OK}] Skills ->{', '.join(new_skills)}")
 
 
 def _section_agents_add(cfg: dict, agents: list, global_provider: str):
@@ -737,7 +734,7 @@ def _section_agents_add(cfg: dict, agents: list, global_provider: str):
     entry = _build_agent_entry(agent_id, role, model, skills, provider)
     agents.append(entry)
     cfg["agents"] = agents
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Added {agent_id} → {provider}/{model}")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Added {agent_id} ->{provider}/{model}")
 
 
 def _section_agents_remove(cfg: dict, agents: list):
@@ -753,7 +750,7 @@ def _section_agents_remove(cfg: dict, agents: list):
 
     removed = agents.pop(idx)
     cfg["agents"] = agents
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Removed [{C_AGENT}]{removed['id']}[/{C_AGENT}]")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Removed [{C_AGENT}]{removed['id']}[/{C_AGENT}]")
 
 
 def _section_memory(cfg: dict):
@@ -766,11 +763,11 @@ def _section_memory(cfg: dict):
     choices = [
         questionary.Choice("Mock (in-memory, no persistence)", value="mock"),
         questionary.Choice(
-            "ChromaDB (vector store)" + ("  ✓" if has_chroma else "  ⚠ not installed"),
+            "ChromaDB (vector store)" + ("  [ok]" if has_chroma else "  [not installed]"),
             value="chroma",
         ),
         questionary.Choice(
-            "Hybrid (Vector + BM25 keyword search)" + ("  ✓" if has_chroma else "  BM25 only"),
+            "Hybrid (Vector + BM25 keyword search)" + ("  [ok]" if has_chroma else "  [BM25 only]"),
             value="hybrid",
         ),
     ]
@@ -798,7 +795,7 @@ def _section_memory(cfg: dict):
                 capture_output=True, text=True,
             )
             if result.returncode == 0:
-                console.print(f"  [{C_OK}]✓[/{C_OK}] ChromaDB installed")
+                console.print(f"  [{C_OK}]+[/{C_OK}] ChromaDB installed")
             else:
                 console.print(f"  [{C_WARN}]Install failed.[/{C_WARN}]")
                 if backend == "hybrid":
@@ -807,7 +804,7 @@ def _section_memory(cfg: dict):
                     backend = "mock"
 
     cfg.setdefault("memory", {})["backend"] = backend
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Memory → {backend}")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Memory ->{backend}")
 
 
 def _section_resilience(cfg: dict):
@@ -872,7 +869,7 @@ def _section_resilience(cfg: dict):
         "circuit_breaker_threshold": cb_threshold,
         "circuit_breaker_cooldown": cb_cooldown,
     }
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Resilience: retry {max_retries}x, CB threshold {cb_threshold}, delay {base_delay}s")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Resilience: retry {max_retries}x, CB threshold {cb_threshold}, delay {base_delay}s")
 
 
 def _section_compaction(cfg: dict):
@@ -894,7 +891,7 @@ def _section_compaction(cfg: dict):
 
     if not enable:
         cfg["compaction"] = {"enabled": False}
-        console.print(f"  [{C_OK}]✓[/{C_OK}] Compaction disabled")
+        console.print(f"  [{C_OK}]+[/{C_OK}] Compaction disabled")
         return
 
     # Max context tokens
@@ -936,7 +933,7 @@ def _section_compaction(cfg: dict):
         "summary_target_tokens": summary_tokens,
         "keep_recent_turns": keep_turns,
     }
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Compaction: max {max_tokens} tokens, keep {keep_turns} turns")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Compaction: max {max_tokens} tokens, keep {keep_turns} turns")
 
 
 def _section_gateway(cfg: dict):
@@ -965,23 +962,26 @@ def _section_gateway(cfg: dict):
     except ValueError:
         port = DEFAULT_PORT
 
-    regen = questionary.confirm(
-        "Regenerate auth token?",
-        default=False,
-        style=STYLE,
-    ).ask()
-    if regen is None:
-        return
-
-    token = generate_token() if regen else current_token
-    if regen:
-        console.print(f"  [{C_OK}]✓[/{C_OK}] New token: [{C_DIM}]{token}[/{C_DIM}]")
+    if current_token:
+        regen = questionary.confirm(
+            "Regenerate auth token?",
+            default=False,
+            style=STYLE,
+        ).ask()
+        if regen is None:
+            return
+        token = generate_token() if regen else current_token
+        if regen:
+            console.print(f"  [{C_OK}]+[/{C_OK}] New token: [{C_DIM}]{token}[/{C_DIM}]")
+    else:
+        token = generate_token()
+        console.print(f"  [{C_OK}]+[/{C_OK}] Generated token: [{C_DIM}]{token}[/{C_DIM}]")
 
     _write_env("SWARM_GATEWAY_PORT", str(port))
     if token:
         _write_env("SWARM_GATEWAY_TOKEN", token)
 
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Gateway: http://127.0.0.1:{port}/")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Gateway: http://127.0.0.1:{port}/")
     console.print(f"  [{C_DIM}]Dashboard: http://127.0.0.1:{port}/[/{C_DIM}]")
     console.print(f"  [{C_DIM}]API Base:  http://127.0.0.1:{port}/v1[/{C_DIM}]")
 
@@ -1012,7 +1012,7 @@ def _section_chain(cfg: dict):
             if rpc_val:
                 _write_env("RPC_URL", rpc_val)
 
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Chain: {'enabled' if new_val else 'disabled'}")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Chain: {'enabled' if new_val else 'disabled'}")
 
 
 def _section_skills(cfg: dict):
@@ -1020,12 +1020,12 @@ def _section_skills(cfg: dict):
     from core.skill_loader import SkillLoader
 
     actions = [
-        questionary.Choice("📋 List installed skills",           value="list"),
-        questionary.Choice("✨ Create new skill",                value="create"),
-        questionary.Choice("📂 Install skill from path",         value="install"),
-        questionary.Choice("🔗 Assign skills to agent",          value="assign"),
-        questionary.Choice("🔄 Regenerate team skill (_team.md)", value="regen"),
-        questionary.Choice("🗑  Remove a skill",                  value="remove"),
+        questionary.Choice("List installed skills",            value="list"),
+        questionary.Choice("Create new skill",                 value="create"),
+        questionary.Choice("Install skill from path",          value="install"),
+        questionary.Choice("Assign skills to agent",           value="assign"),
+        questionary.Choice("Regenerate team skill (_team.md)", value="regen"),
+        questionary.Choice("Remove a skill",                   value="remove"),
     ]
 
     action = questionary.select(
@@ -1142,7 +1142,7 @@ def _section_skills(cfg: dict):
         with open(path, "w") as f:
             f.write("\n".join(lines))
 
-        console.print(f"  [{C_OK}]✓[/{C_OK}] Created skill: {path}")
+        console.print(f"  [{C_OK}]+[/{C_OK}] Created skill: {path}")
 
         # If shared, ask whether to assign to agents
         if scope == "shared":
@@ -1169,7 +1169,7 @@ def _section_skills(cfg: dict):
         dest = os.path.join("skills", fname)
         os.makedirs("skills", exist_ok=True)
         shutil.copy2(src, dest)
-        console.print(f"  [{C_OK}]✓[/{C_OK}] Installed: {dest}")
+        console.print(f"  [{C_OK}]+[/{C_OK}] Installed: {dest}")
 
     # ── Assign skills to agent ──
     elif action == "assign":
@@ -1195,7 +1195,7 @@ def _section_skills(cfg: dict):
             from core.team_skill import generate_team_skill
             content = generate_team_skill()
             if content:
-                console.print(f"  [{C_OK}]✓[/{C_OK}] Regenerated skills/_team.md "
+                console.print(f"  [{C_OK}]+[/{C_OK}] Regenerated skills/_team.md "
                               f"({len(content)} chars)")
             else:
                 console.print(f"  [{C_WARN}]No agents found — team skill not generated.[/{C_WARN}]")
@@ -1238,7 +1238,7 @@ def _section_skills(cfg: dict):
             if confirm:
                 try:
                     os.remove(to_remove)
-                    console.print(f"  [{C_OK}]✓[/{C_OK}] Removed: {to_remove}")
+                    console.print(f"  [{C_OK}]+[/{C_OK}] Removed: {to_remove}")
                 except OSError as e:
                     console.print(f"  [{C_WARN}]Error: {e}[/{C_WARN}]")
 
@@ -1275,7 +1275,7 @@ def _skills_assign_to_agents(cfg: dict, skill_name: str = "",
         ).ask()
         if new_skills is not None:
             target_agent["skills"] = new_skills
-            console.print(f"  [{C_OK}]✓[/{C_OK}] {target_agent['id']} → "
+            console.print(f"  [{C_OK}]+[/{C_OK}] {target_agent['id']} ->"
                           f"{', '.join(new_skills)}")
     else:
         # Assign a specific skill to multiple agents
@@ -1291,7 +1291,7 @@ def _skills_assign_to_agents(cfg: dict, skill_name: str = "",
                 if add:
                     current.append(skill_name)
                     agent["skills"] = current
-                    console.print(f"  [{C_OK}]✓[/{C_OK}] Added to {agent['id']}")
+                    console.print(f"  [{C_OK}]+[/{C_OK}] Added to {agent['id']}")
 
 
 def _section_health(cfg: dict):
@@ -1344,7 +1344,7 @@ def _ask_gateway() -> tuple[int, str]:
         port = DEFAULT_PORT
 
     token = generate_token()
-    console.print(f"  [{C_OK}]✓[/{C_OK}] Auth token: [{C_DIM}]{token[:20]}...[/{C_DIM}]")
+    console.print(f"  [{C_OK}]+[/{C_OK}] Auth token: [{C_DIM}]{token[:20]}...[/{C_DIM}]")
 
     return port, token
 
@@ -1369,9 +1369,9 @@ def _ask_daemon(port: int, token: str):
         from core.daemon import install_daemon
         ok, msg = install_daemon(port, token)
         if ok:
-            console.print(f"  [{C_OK}]✓[/{C_OK}] {msg}")
+            console.print(f"  [{C_OK}]+[/{C_OK}] {msg}")
         else:
-            console.print(f"  [{C_WARN}]⚠ {msg}[/{C_WARN}]")
+            console.print(f"  [{C_WARN}]! {msg}[/{C_WARN}]")
     else:
         console.print(f"  [{C_DIM}]Skipped — run `swarm gateway` to start manually.[/{C_DIM}]")
 
@@ -1397,7 +1397,7 @@ def _show_gateway_summary(provider: str, model: str):
         f"  Gateway    [{C_DIM}]http://127.0.0.1:{gateway_port}/[/{C_DIM}]\n"
         f"{token_line}"
         f"  Config     [{C_DIM}]{CONFIG_PATH}[/{C_DIM}]\n\n"
-        f"  [{C_OK}]✓[/{C_OK}] Type a task to get started!",
+        f"  [{C_OK}]+[/{C_OK}] Type a task to get started!",
         border_style="magenta",
         box=box.ROUNDED,
     ))
@@ -1440,7 +1440,7 @@ def _show_gateway_summary_full(agents_cfg: list[dict], memory: str, chain: bool,
     if gateway_token:
         console.print(f"  Token    [{C_DIM}]{gateway_token}[/{C_DIM}]")
     console.print(f"  Config   [{C_DIM}]{CONFIG_PATH}[/{C_DIM}]")
-    console.print(f"\n  [{C_OK}]✓[/{C_OK}] Type a task to get started!\n")
+    console.print(f"\n  [{C_OK}]+[/{C_OK}] Type a task to get started!\n")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1510,7 +1510,7 @@ def _ask_model(provider: str, api_key: str) -> str | None:
     models, err = _fetch_models(provider, api_key)
 
     if models:
-        console.print(f"\r  [{C_OK}]✓[/{C_OK}] {len(models)} models available    ")
+        console.print(f"\r  [{C_OK}]+[/{C_OK}] {len(models)} models available    ")
 
         # Build choices: fetched models + manual input
         choices = [questionary.Choice(m, value=m) for m in models]
@@ -1533,7 +1533,7 @@ def _ask_model(provider: str, api_key: str) -> str | None:
 
     else:
         if err:
-            console.print(f"\r  [{C_WARN}]⚠ {err}[/{C_WARN}]" + " " * 20)
+            console.print(f"\r  [{C_WARN}]! {err}[/{C_WARN}]" + " " * 20)
         else:
             console.print(f"\r  [{C_DIM}]Could not fetch models[/{C_DIM}]" + " " * 20)
 
@@ -1564,7 +1564,7 @@ def _ask_memory() -> str | None:
     """Ask for memory backend, check chromadb availability."""
     has_chroma = _check_chromadb()
 
-    chroma_tag = "  ✓" if has_chroma else "  ⚠ not installed"
+    chroma_tag = "  [ok]" if has_chroma else "  [not installed]"
 
     choice = questionary.select(
         "Memory backend:",
@@ -1593,7 +1593,7 @@ def _ask_memory() -> str | None:
                 capture_output=True, text=True,
             )
             if result.returncode == 0:
-                console.print(f"  [{C_OK}]✓[/{C_OK}] ChromaDB installed")
+                console.print(f"  [{C_OK}]+[/{C_OK}] ChromaDB installed")
             else:
                 console.print(f"  [{C_WARN}]Install failed.[/{C_WARN}]")
                 if choice == "hybrid":
@@ -1649,7 +1649,7 @@ def _detect_existing_config() -> str:
         llm = a.get("llm", {})
         p = llm.get("provider", global_provider)
         fb = a.get("fallback_models", [])
-        fb_str = f" → {', '.join(fb)}" if fb else ""
+        fb_str = f" ->{', '.join(fb)}" if fb else ""
         lines.append(f"    [{C_AGENT}]{a['id']:10}[/{C_AGENT}] [{C_DIM}]{p}/{a.get('model', '?')}{fb_str}[/{C_DIM}]")
 
     # Gateway token
@@ -1724,7 +1724,7 @@ def _ask_provider() -> str | None:
         label = info["label"]
         env_var = info["env"]
         if env_var and os.environ.get(env_var):
-            label += "  ✓ key detected"
+            label += "  [key detected]"
         choices.append(questionary.Choice(label, value=key))
 
     default_val = detected if detected else "flock"
@@ -1754,7 +1754,7 @@ def _ensure_api_key(provider: str) -> str | None:
     existing = os.environ.get(env_var, "")
     if existing:
         masked = existing[:6] + "..." + existing[-4:] if len(existing) > 12 else "***"
-        console.print(f"  [{C_OK}]✓[/{C_OK}] {env_var} = {masked}")
+        console.print(f"  [{C_OK}]+[/{C_OK}] {env_var} = {masked}")
 
         action = questionary.select(
             "API Key:",
