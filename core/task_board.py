@@ -158,6 +158,13 @@ class Task:
         d.setdefault("parent_id", None)
         # Remove internal bookkeeping fields not in dataclass
         d.pop("_paused_from", None)
+        d.pop("partial_result", None)
+        d.pop("cost_usd", None)
+        # Remove any other unknown keys to prevent __init__ errors
+        known_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        for key in list(d.keys()):
+            if key not in known_fields:
+                d.pop(key)
         return cls(**d)
 
 
