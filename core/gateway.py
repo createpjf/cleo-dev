@@ -198,6 +198,14 @@ class _Handler(BaseHTTPRequestHandler):
         # ── Heartbeat route ──
         elif path == "/v1/heartbeat":
             self._handle_heartbeat()
+        # ── SSE event stream ──
+        elif path == "/v1/events":
+            self._handle_sse()
+        # ── Budget & Alerts ──
+        elif path == "/v1/budget":
+            self._handle_get_budget()
+        elif path == "/v1/alerts":
+            self._handle_get_alerts()
         # ── Logs route ──
         elif path.startswith("/v1/logs/"):
             agent_id = path[len("/v1/logs/"):]
@@ -236,6 +244,24 @@ class _Handler(BaseHTTPRequestHandler):
         elif path.startswith("/v1/chain/register/"):
             agent_id = path[len("/v1/chain/register/"):]
             self._handle_chain_register(agent_id)
+        # ── Task lifecycle controls ──
+        elif path.startswith("/v1/task/") and path.endswith("/cancel"):
+            task_id = path[len("/v1/task/"):-len("/cancel")]
+            self._handle_task_cancel(task_id)
+        elif path.startswith("/v1/task/") and path.endswith("/pause"):
+            task_id = path[len("/v1/task/"):-len("/pause")]
+            self._handle_task_pause(task_id)
+        elif path.startswith("/v1/task/") and path.endswith("/resume"):
+            task_id = path[len("/v1/task/"):-len("/resume")]
+            self._handle_task_resume(task_id)
+        elif path.startswith("/v1/task/") and path.endswith("/retry"):
+            task_id = path[len("/v1/task/"):-len("/retry")]
+            self._handle_task_retry(task_id)
+        elif path == "/v1/tasks/cancel_all":
+            self._handle_cancel_all()
+        # ── Budget management ──
+        elif path == "/v1/budget":
+            self._handle_set_budget()
         else:
             self._json_response(404, {"error": "Not found"})
 
@@ -1033,6 +1059,179 @@ class _Handler(BaseHTTPRequestHandler):
                 "total": 0,
                 "error": str(e),
             })
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  TASK LIFECYCLE CONTROLS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _handle_task_cancel(self, task_id: str):
+        from core.task_board import TaskBoard
+        board = TaskBoard()
+        ok = board.cancel(task_id)
+        if ok:
+            self._json_response(200, {"ok": True, "task_id": task_id,
+                                       "status": "cancelled"})
+        else:
+            self._json_response(400, {"error": f"Cannot cancel task {task_id}"})
+
+    def _handle_task_pause(self, task_id: str):
+        from core.task_board import TaskBoard
+        board = TaskBoard()
+        ok = board.pause(task_id)
+        if ok:
+            self._json_response(200, {"ok": True, "task_id": task_id,
+                                       "status": "paused"})
+        else:
+            self._json_response(400, {"error": f"Cannot pause task {task_id}"})
+
+    def _handle_task_resume(self, task_id: str):
+        from core.task_board import TaskBoard
+        board = TaskBoard()
+        ok = board.resume(task_id)
+        if ok:
+            self._json_response(200, {"ok": True, "task_id": task_id,
+                                       "status": "pending"})
+        else:
+            self._json_response(400, {"error": f"Cannot resume task {task_id}"})
+
+    def _handle_task_retry(self, task_id: str):
+        from core.task_board import TaskBoard
+        board = TaskBoard()
+        ok = board.retry(task_id)
+        if ok:
+            self._json_response(200, {"ok": True, "task_id": task_id,
+                                       "status": "pending"})
+        else:
+            self._json_response(400, {"error": f"Cannot retry task {task_id}"})
+
+    def _handle_cancel_all(self):
+        from core.task_board import TaskBoard
+        board = TaskBoard()
+        count = board.cancel_all()
+        self._json_response(200, {"ok": True, "cancelled": count})
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  BUDGET & ALERTS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _handle_set_budget(self):
+        body = self._read_body()
+        from core.usage_tracker import UsageTracker
+        budget = UsageTracker.set_budget(
+            max_cost_usd=float(body.get("max_cost_usd", 0)),
+            max_tokens=int(body.get("max_tokens", 0)),
+            warn_at_percent=int(body.get("warn_at_percent", 80)),
+            enabled=body.get("enabled", True),
+        )
+        self._json_response(200, {"ok": True, "budget": budget})
+
+    def _handle_get_budget(self):
+        from core.usage_tracker import UsageTracker
+        budget = UsageTracker.get_budget()
+        self._json_response(200, {"budget": budget})
+
+    def _handle_get_alerts(self):
+        from core.usage_tracker import UsageTracker
+        alerts = UsageTracker.get_alerts()
+        self._json_response(200, {"alerts": alerts, "total": len(alerts)})
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SSE EVENT STREAM
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _handle_sse(self):
+        """Server-Sent Events stream for real-time dashboard updates.
+
+        Pushes task board state, heartbeats, and alerts every 1.5s.
+        Dashboard connects via: new EventSource('/v1/events')
+        """
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        import time as _time
+
+        last_state_hash = ""
+        try:
+            while True:
+                # Build current state snapshot
+                snapshot = self._sse_snapshot()
+                state_str = json.dumps(snapshot, ensure_ascii=False,
+                                       default=str)
+                # Only send if state changed (or every 5th cycle as heartbeat)
+                state_hash = str(hash(state_str))
+                if state_hash != last_state_hash:
+                    self.wfile.write(f"event: state\ndata: {state_str}\n\n"
+                                    .encode("utf-8"))
+                    self.wfile.flush()
+                    last_state_hash = state_hash
+                else:
+                    # Send keepalive comment
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+
+                _time.sleep(1.5)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass  # Client disconnected
+
+    def _sse_snapshot(self) -> dict:
+        """Build a compact state snapshot for SSE push."""
+        snapshot: dict = {"ts": time.time()}
+
+        # Task board
+        try:
+            if os.path.exists(".task_board.json"):
+                with open(".task_board.json") as f:
+                    tasks = json.load(f)
+                # Compact: only send essential fields
+                compact_tasks = {}
+                for tid, t in tasks.items():
+                    compact_tasks[tid] = {
+                        "s": t.get("status", "?"),
+                        "a": t.get("agent_id", ""),
+                        "d": (t.get("description", ""))[:60],
+                        "ca": t.get("claimed_at"),
+                        "co": t.get("completed_at"),
+                        "rc": t.get("retry_count", 0),
+                    }
+                    # Include review score if available
+                    scores = t.get("review_scores", [])
+                    if scores:
+                        avg = sum(r["score"] for r in scores) / len(scores)
+                        compact_tasks[tid]["rs"] = int(avg)
+                snapshot["tasks"] = compact_tasks
+        except Exception:
+            snapshot["tasks"] = {}
+
+        # Agent heartbeats
+        try:
+            from core.heartbeat import read_all_heartbeats
+            agents = read_all_heartbeats()
+            snapshot["agents"] = [
+                {"id": a.get("agent_id", ""), "on": a.get("online", False),
+                 "st": a.get("status", "offline"), "tid": a.get("task_id")}
+                for a in agents
+            ]
+        except Exception:
+            snapshot["agents"] = []
+
+        # Budget status (compact)
+        try:
+            from core.usage_tracker import UsageTracker
+            budget = UsageTracker.get_budget()
+            if budget.get("enabled"):
+                snapshot["budget"] = {
+                    "pct": budget.get("percent_used", 0),
+                    "cost": round(budget.get("current_cost_usd", 0), 4),
+                    "limit": budget.get("max_cost_usd", 0),
+                }
+        except Exception:
+            pass
+
+        return snapshot
 
     # ══════════════════════════════════════════════════════════════════════════
     #  MEMORY HANDLERS

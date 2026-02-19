@@ -130,16 +130,18 @@ def interactive_main():
 
         if cmd == "help":
             console.print(Panel(
-                "[bold]/status[/bold]     — task board\n"
-                "[bold]/scores[/bold]    — reputation scores\n"
-                "[bold]/usage[/bold]     — token usage & cost stats\n"
-                "[bold]/workflows[/bold] — list available workflows\n"
-                "[bold]/config[/bold]    — show current config\n"
-                "[bold]/configure[/bold] — re-run full setup wizard\n"
-                "[bold]/chain[/bold]     — on-chain status (chain status/balance/init/health)\n"
-                "[bold]/doctor[/bold]    — system health check\n"
-                "[bold]/clear[/bold]     — clear task history\n"
-                "[bold]exit[/bold]       — quit",
+                "[bold]/status[/bold]      — task board\n"
+                "[bold]/scores[/bold]     — reputation scores\n"
+                "[bold]/usage[/bold]      — token usage & cost stats\n"
+                "[bold]/budget[/bold]     — view/set spending limits\n"
+                "[bold]/cancel[/bold]     — cancel all running tasks\n"
+                "[bold]/workflows[/bold]  — list available workflows\n"
+                "[bold]/config[/bold]     — show current config\n"
+                "[bold]/configure[/bold]  — re-run full setup wizard\n"
+                "[bold]/chain[/bold]      — on-chain status\n"
+                "[bold]/doctor[/bold]     — system health check\n"
+                "[bold]/clear[/bold]      — clear task history (with confirmation)\n"
+                "[bold]exit[/bold]        — quit",
                 title="Commands",
                 border_style="dim",
             ))
@@ -165,6 +167,19 @@ def interactive_main():
             cmd_workflows(console)
             continue
 
+        if cmd == "cancel":
+            board = TaskBoard()
+            count = board.cancel_all()
+            if count > 0:
+                console.print(f"  [yellow]Cancelled {count} tasks.[/yellow]\n")
+            else:
+                console.print("  [dim]No active tasks to cancel.[/dim]\n")
+            continue
+
+        if cmd == "budget":
+            cmd_budget(console)
+            continue
+
         if cmd == "config":
             from rich.table import Table as RichTable
             tbl = RichTable(box=None, padding=(0, 1), show_header=True)
@@ -187,14 +202,30 @@ def interactive_main():
 
         if cmd == "clear":
             board = TaskBoard()
-            board.clear()
-            for fp in [".context_bus.json"]:
-                if os.path.exists(fp):
+            result = board.clear(force=False)
+            if result == -1:
+                # Active tasks exist — confirm
+                confirm = Prompt.ask(
+                    "  [yellow]Active tasks exist. Force clear?[/yellow] [dim](y/N)[/dim]")
+                if confirm.strip().lower() == "y":
+                    board.clear(force=True)
+                    for fp in [".context_bus.json"]:
+                        if os.path.exists(fp):
+                            os.remove(fp)
+                    import glob as _glob
+                    for fp in _glob.glob(".mailboxes/*.jsonl"):
+                        os.remove(fp)
+                    console.print("  [dim]Force cleared.[/dim]\n")
+                else:
+                    console.print("  [dim]Cancelled.[/dim]\n")
+            else:
+                for fp in [".context_bus.json"]:
+                    if os.path.exists(fp):
+                        os.remove(fp)
+                import glob as _glob
+                for fp in _glob.glob(".mailboxes/*.jsonl"):
                     os.remove(fp)
-            import glob
-            for fp in glob.glob(".mailboxes/*.jsonl"):
-                os.remove(fp)
-            console.print("  [dim]Cleared.[/dim]\n")
+                console.print(f"  [dim]Cleared {result} tasks.[/dim]\n")
             continue
 
         if cmd and cmd.startswith("chain"):
@@ -420,6 +451,42 @@ def cmd_workflows(console=None):
     else:
         for w in workflows:
             print(f"  {w['name']:25} ({w['steps']} steps)  {w['description'][:40]}")
+
+
+def cmd_budget(console=None):
+    """Show and manage budget limits."""
+    from core.usage_tracker import UsageTracker
+    budget = UsageTracker.get_budget()
+
+    if console:
+        console.print()
+        enabled = budget.get("enabled", False)
+        if not enabled:
+            console.print("  [dim]Budget: not configured[/dim]")
+            console.print("  [dim]Set via: POST /v1/budget or config/budget.json[/dim]\n")
+        else:
+            max_cost = budget.get("max_cost_usd", 0)
+            current = budget.get("current_cost_usd", 0)
+            pct = budget.get("percent_used", 0)
+            tokens = budget.get("current_tokens", 0)
+
+            # Color based on usage
+            if pct >= 90:
+                style = "red"
+            elif pct >= 70:
+                style = "yellow"
+            else:
+                style = "green"
+
+            console.print(f"  [bold]Budget:[/bold]  ${max_cost:.2f}")
+            console.print(f"  [bold]Spent:[/bold]   [{style}]${current:.4f}  ({pct:.0f}%)[/{style}]")
+            console.print(f"  [bold]Tokens:[/bold]  {tokens:,}")
+            max_tokens = budget.get("max_tokens", 0)
+            if max_tokens:
+                console.print(f"  [bold]Token Limit:[/bold] {max_tokens:,}")
+            console.print()
+    else:
+        print(json.dumps(budget, indent=2))
 
 
 def cmd_usage(console=None):
