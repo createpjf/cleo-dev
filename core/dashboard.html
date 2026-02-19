@@ -135,15 +135,23 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .summary-bar .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:middle}
 
 /* ── Agent Cards ──────────────────────────────────────────────── */
-.agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.agent-card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);padding:16px;transition:.2s;cursor:pointer}
+.agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.agent-card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);padding:14px 16px;transition:.2s;cursor:pointer;display:flex;flex-direction:column;gap:6px}
 .agent-card:hover{border-color:var(--accent);box-shadow:0 0 20px rgba(124,108,240,.1)}
-.agent-card.editing{border-color:var(--accent);box-shadow:0 0 20px rgba(124,108,240,.15)}
-.agent-name{font-size:16px;font-weight:700;margin-bottom:4px}
-.agent-model{font-family:var(--mono);font-size:12px;color:var(--accent2);margin-bottom:8px}
-.agent-meta{font-size:12px;color:var(--fg2);line-height:1.8}
-.agent-meta span{display:inline-block;background:var(--bg3);padding:1px 6px;border-radius:4px;margin:1px 2px;font-size:11px}
-.agent-score{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bg3)}
+.agent-card.editing{border-color:var(--accent);box-shadow:0 0 20px rgba(124,108,240,.15);border-bottom-left-radius:0;border-bottom-right-radius:0}
+.agent-card-header{display:flex;align-items:center;gap:6px}
+.agent-name{font-size:15px;font-weight:700}
+.agent-working{font-size:10px;color:var(--cyan);font-weight:400;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:4px}
+.agent-card-model{font-family:var(--mono);font-size:12px;color:var(--accent2)}
+.agent-provider{color:var(--fg3);font-size:11px}
+.agent-card-skills{display:flex;flex-wrap:wrap;gap:4px}
+.skill-tag{display:inline-block;background:var(--bg3);color:var(--fg2);padding:2px 8px;border-radius:4px;font-size:11px}
+.agent-card-chain{font-size:11px;color:var(--fg2)}
+.agent-card-chain a{font-family:var(--mono);color:var(--accent2);text-decoration:none;font-size:11px}
+.key-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.key-dot.set{background:var(--green)}
+.key-dot.unset{background:var(--red)}
+.agent-score{display:flex;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--bg3)}
 .score-bar{flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
 .score-fill{height:100%;border-radius:3px;transition:width .5s}
 .score-num{font-family:var(--mono);font-size:14px;font-weight:700;min-width:36px;text-align:right}
@@ -173,6 +181,10 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .skills-editor textarea{flex:1;background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);color:var(--fg);font-family:var(--mono);font-size:12px;line-height:1.6;padding:14px;resize:none;outline:none;min-height:300px}
 .skills-editor textarea:focus{border-color:var(--accent)}
 .skills-empty{display:flex;align-items:center;justify-content:center;flex:1;color:var(--fg3);font-size:14px}
+.skill-assign-bar{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bg3);flex-wrap:wrap}
+.skill-assign-label{font-size:11px;font-weight:600;color:var(--fg2);text-transform:uppercase;flex-shrink:0}
+.skill-assign-cb{display:flex;align-items:center;gap:3px;font-size:12px;color:var(--fg2);cursor:pointer}
+.skill-assign-cb span{user-select:none}
 
 /* ── Health Checks ────────────────────────────────────────────── */
 .checks{list-style:none}
@@ -1911,89 +1923,60 @@ async function loadAgents() {
     const hb = heartbeatData[a.id];
     const isOnline = hb && hb.online;
 
+    // ── Card surface: compact, consistent ──
     html += '<div class="agent-card' + (isEditing ? ' editing' : '') + '" onclick="editAgent(\'' + escHtml(a.id) + '\')">';
-    html += '<div class="agent-name">'
-      + '<span class="hb-dot ' + (isOnline ? 'online' : 'offline') + '" data-agent-id="' + escHtml(a.id) + '" title="' + (isOnline ? (hb.status==='working' ? 'Working' : 'Idle') : 'Offline') + '"></span> '
-      + escHtml(a.id);
-    if (isOnline && hb.status === 'working') {
-      html += ' <span style="font-size:10px;color:var(--cyan);font-weight:400">⚡ working</span>';
-    }
-    html += '</div>';
-    html += '<div class="agent-model">' + escHtml(a.model||'—') + '</div>';
-    html += '<div class="agent-meta">';
-    html += 'Provider: <span>' + escHtml(a.provider||'—') + '</span><br>';
-
-    // API Key status
-    const keyEnv = a.api_key_env || '';
+    // Row 1: Name + status
+    html += '<div class="agent-card-header">';
+    html += '<span class="hb-dot ' + (isOnline ? 'online' : 'offline') + '" data-agent-id="' + escHtml(a.id) + '"></span>';
+    html += '<span class="agent-name">' + escHtml(a.id) + '</span>';
+    if (isOnline && hb.status === 'working') html += '<span class="agent-working">working</span>';
+    html += '<span style="flex:1"></span>';
+    // API Key indicator (compact)
     const isKeySet = a.api_key_set;
-    const maskedKey = a.api_key_masked || '';
-    const baseUrl = a.base_url || '';
-    if (keyEnv) {
-      const globalKeyEnv = agentData.global_key_env || '';
-      const allSameKey = agents.every(ag => (ag.api_key_env||'') === keyEnv);
-      const isShared = allSameKey || (globalKeyEnv && keyEnv === globalKeyEnv);
-      if (isKeySet) {
-        if (isShared) {
-          html += 'API Key: <span class="key-badge shared">🔗 ' + escHtml(maskedKey) + '</span>';
-        } else {
-          html += 'API Key: <span class="key-badge set">✓ ' + escHtml(maskedKey) + '</span>';
-        }
-      } else {
-        html += 'API Key: <span class="key-badge unset">✗ not set</span>';
-      }
-      if (baseUrl) html += ' <span style="font-size:10px;color:var(--fg3)">' + escHtml(baseUrl) + '</span>';
-      html += '<br>';
+    if (isKeySet) html += '<span class="key-dot set" title="API key set"></span>';
+    else if (a.api_key_env) html += '<span class="key-dot unset" title="API key not set"></span>';
+    html += '</div>';
+
+    // Row 2: Model + Provider
+    html += '<div class="agent-card-model">' + escHtml(a.model||'—')
+      + ' <span class="agent-provider">' + escHtml(a.provider||'') + '</span></div>';
+
+    // Row 3: Skills tags
+    const skillsList = a.skills || [];
+    if (skillsList.length) {
+      html += '<div class="agent-card-skills">';
+      for (const s of skillsList) html += '<span class="skill-tag">' + escHtml(s) + '</span>';
+      html += '</div>';
     }
 
-    html += 'Skills: ' + (a.skills||[]).map(s=>'<span>'+escHtml(s)+'</span>').join(' ');
-    if (a.fallback_models && a.fallback_models.length) {
-      html += '<br>Fallbacks: ' + a.fallback_models.map(m=>'<span>'+escHtml(m)+'</span>').join(' ');
-    }
-
-    // Chain identity info
+    // Row 4: Chain identity (compact, only if registered)
     const chain = chainAgents[a.id];
     if (chain && chain.registered) {
       const addr = chain.pkp_address || '';
       const shortAddr = addr ? addr.slice(0, 6) + '…' + addr.slice(-4) : '';
       const chainId = chain.erc8004_agent_id != null ? '#' + chain.erc8004_agent_id : '';
       const scanUrl = 'https://sepolia.basescan.org/address/' + addr;
-      html += '<br><span style="color:var(--green);font-size:11px">⛓ On-chain</span> ';
-      html += '<span style="font-size:11px;color:var(--fg2)">' + chainId + '</span> ';
-      html += '<a href="' + scanUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" '
-        + 'style="font-family:var(--mono);font-size:11px;color:var(--accent2);text-decoration:none" '
-        + 'title="' + escHtml(addr) + '">' + escHtml(shortAddr) + ' ↗</a>';
-    } else if (chainData && chainData.enabled) {
-      html += '<br><span style="color:var(--fg3);font-size:11px">⛓ Not registered</span>';
+      html += '<div class="agent-card-chain">'
+        + '<span>⛓ On-chain ' + chainId + '</span> '
+        + '<a href="' + scanUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + escHtml(shortAddr) + '</a>'
+        + '</div>';
     }
 
-    html += '</div>';
-
-    // Score bar
+    // Row 5: Score bar (if has scores)
     if (composite > 0) {
       html += '<div class="agent-score">'
         + '<div class="score-bar"><div class="score-fill" style="width:'+composite+'%;background:'+scoreColor(composite)+'"></div></div>'
         + '<div class="score-num" style="color:'+scoreColor(composite)+'">' + composite.toFixed(1) + '</div>'
         + '</div>';
-
-      const dimNames = {task_completion:'Completion',output_quality:'Quality',improvement_rate:'Improvement',consistency:'Consistency',review_accuracy:'Review'};
-      html += '<div style="margin-top:8px;font-size:11px;color:var(--fg2)">';
-      for (const [k,label] of Object.entries(dimNames)) {
-        const v = dims[k] || 0;
-        html += '<div style="display:flex;align-items:center;gap:6px;margin:2px 0">'
-          + '<span style="min-width:70px">' + label + '</span>'
-          + '<div style="flex:1;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden">'
-          + '<div style="height:100%;width:'+v+'%;background:'+scoreColor(v)+';border-radius:2px"></div></div>'
-          + '<span style="min-width:28px;text-align:right;font-family:var(--mono)">' + v.toFixed(0) + '</span>'
-          + '</div>';
-      }
-      html += '</div>';
     }
 
     html += '</div>'; // .agent-card
 
-    // Inline editor
+    // ── Expanded editor panel ──
     if (isEditing) {
       html += '<div class="agent-editor" onclick="event.stopPropagation()">';
+
+      // ── Basic settings ──
       html += '<div class="field-row">';
       html += '<div class="field"><label>Model</label><input class="input" id="editModel" value="' + escHtml(a.model||'') + '"></div>';
       html += '<div class="field"><label>Provider</label><select class="input" id="editProvider">';
@@ -2003,6 +1986,8 @@ async function loadAgents() {
       html += '</select></div>';
       html += '</div>';
       html += '<div class="field"><label>Role</label><textarea class="input" id="editRole" rows="2">' + escHtml(a.role||'') + '</textarea></div>';
+
+      // ── Skills checkboxes ──
       html += '<div class="field"><label>Skills</label><div id="editSkillsBox" style="display:flex;flex-wrap:wrap;gap:6px">';
       const agentSkills = new Set(a.skills||[]);
       for (const sk of allSkills) {
@@ -2011,18 +1996,36 @@ async function loadAgents() {
           + '<input type="checkbox" class="edit-skill-cb" value="' + escHtml(sk.name) + '"' + checked + '>' + escHtml(sk.name) + '</label>';
       }
       html += '</div></div>';
+
+      // ── Fallback Models ──
       html += '<div class="field"><label>Fallback Models (comma-separated)</label><input class="input" id="editFallbacks" value="' + escHtml((a.fallback_models||[]).join(', ')) + '"></div>';
 
-      // ── API Key Configuration ──
+      // ── API Key + Base URL (in expanded only) ──
       html += '<div style="border-top:1px solid var(--bg4);margin:10px 0;padding-top:10px">';
-      html += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">🔑 API Key Configuration</div>';
+      html += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">API Configuration</div>';
       html += '<div class="field-row">';
       const keyPlaceholder = a.api_key_masked ? 'Current: ' + a.api_key_masked : 'sk-xxxxxxxx';
       html += '<div class="field"><label>API Key</label><input class="input" id="editApiKey" type="password" value="" placeholder="' + escHtml(keyPlaceholder) + '"><div style="font-size:10px;color:var(--fg3);margin-top:2px">Leave empty to keep current key</div></div>';
       html += '<div class="field"><label>Base URL</label><input class="input" id="editBaseUrl" value="' + escHtml(a.base_url||'') + '" placeholder="https://api.openai.com/v1"></div>';
       html += '</div>';
-      html += '<div style="font-size:11px;color:var(--fg3);margin-top:4px">💡 Values auto-save to local .env file. Leave API Key empty to keep current value.</div>';
       html += '</div>';
+
+      // ── Score dimensions (in expanded only) ──
+      if (composite > 0) {
+        const dimNames = {task_completion:'Completion',output_quality:'Quality',improvement_rate:'Improvement',consistency:'Consistency',review_accuracy:'Review'};
+        html += '<div style="border-top:1px solid var(--bg4);margin:10px 0;padding-top:10px">';
+        html += '<div style="font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin-bottom:8px">Score Breakdown</div>';
+        for (const [k,label] of Object.entries(dimNames)) {
+          const v = dims[k] || 0;
+          html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:var(--fg2)">'
+            + '<span style="min-width:70px">' + label + '</span>'
+            + '<div style="flex:1;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden">'
+            + '<div style="height:100%;width:'+v+'%;background:'+scoreColor(v)+';border-radius:2px"></div></div>'
+            + '<span style="min-width:28px;text-align:right;font-family:var(--mono)">' + v.toFixed(0) + '</span>'
+            + '</div>';
+        }
+        html += '</div>';
+      }
 
       html += '<div class="actions">';
       html += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();closeAgentEditor()">Cancel</button>';
@@ -2166,6 +2169,24 @@ async function selectSkill(scope, name, agentId) {
   }
 
   h += '</div>';
+
+  // ── Assignment panel for shared skills ──
+  if (scope === 'shared' && !name.startsWith('_')) {
+    const agentsResp = await api('/v1/agents');
+    const agentsList = agentsResp?.agents || [];
+    if (agentsList.length) {
+      h += '<div class="skill-assign-bar">';
+      h += '<span class="skill-assign-label">Assigned to:</span>';
+      for (const ag of agentsList) {
+        const hasSkill = (ag.skills || []).includes(name);
+        h += '<label class="skill-assign-cb"><input type="checkbox" class="assign-agent-cb" value="' + escHtml(ag.id) + '"'
+          + (hasSkill ? ' checked' : '') + ' onchange="updateSkillAssignment()">'
+          + '<span>' + escHtml(ag.id) + '</span></label>';
+      }
+      h += '</div>';
+    }
+  }
+
   h += '<textarea class="mono" id="skillContent" oninput="skillsDirty=true">' + escHtml(data.content||'') + '</textarea>';
   editor.innerHTML = h;
 
@@ -2193,6 +2214,29 @@ async function saveSkill() {
   } else {
     toast(res?.error || 'Failed to save', 'error');
   }
+}
+
+// Update which agents have this shared skill assigned
+async function updateSkillAssignment() {
+  if (!currentSkill || currentSkill.scope !== 'shared') return;
+  const skillName = currentSkill.name;
+  const agentsResp = await api('/v1/agents');
+  const agentsList = agentsResp?.agents || [];
+  const checkboxes = document.querySelectorAll('.assign-agent-cb');
+
+  for (const cb of checkboxes) {
+    const agentId = cb.value;
+    const shouldHave = cb.checked;
+    const agent = agentsList.find(a => a.id === agentId);
+    if (!agent) continue;
+    const currentSkills = new Set(agent.skills || []);
+    const hasIt = currentSkills.has(skillName);
+    if (shouldHave === hasIt) continue; // no change needed
+    if (shouldHave) currentSkills.add(skillName);
+    else currentSkills.delete(skillName);
+    await apiPut('/v1/agents/' + agentId, {skills: Array.from(currentSkills)});
+  }
+  toast('Skill assignment updated');
 }
 
 async function deleteSkill() {
@@ -2241,10 +2285,20 @@ function uploadSkill(input) {
     // Create as shared skill
     const res = await apiPut('/v1/skills/' + name, {content});
     if (res && res.ok) {
-      toast('Skill "' + name + '" uploaded');
-      loadSkills();
-      // Select the uploaded skill
-      setTimeout(() => selectSkill('shared', name), 300);
+      // Auto-assign to all agents
+      const agentsResp = await api('/v1/agents');
+      if (agentsResp?.agents) {
+        for (const ag of agentsResp.agents) {
+          const skills = new Set(ag.skills || []);
+          if (!skills.has(name)) {
+            skills.add(name);
+            await apiPut('/v1/agents/' + ag.id, {skills: Array.from(skills)});
+          }
+        }
+      }
+      toast('Skill "' + name + '" uploaded and assigned to all agents');
+      await loadSkills();
+      selectSkill('shared', name);
     } else {
       toast(res?.error || 'Upload failed', 'error');
     }
@@ -2308,15 +2362,27 @@ async function createSkill() {
 
   const res = await apiPut(path, {content: template});
   if (res && res.ok) {
+    // Auto-assign shared skills to all agents
+    if (!scopeVal.startsWith('agent:')) {
+      const agentsResp = await api('/v1/agents');
+      if (agentsResp?.agents) {
+        for (const ag of agentsResp.agents) {
+          const skills = new Set(ag.skills || []);
+          if (!skills.has(name)) {
+            skills.add(name);
+            await apiPut('/v1/agents/' + ag.id, {skills: Array.from(skills)});
+          }
+        }
+      }
+    }
     toast('Skill "' + name + '" created');
     closeCreateDialog();
-    loadSkills();
-    // Select the new skill
+    await loadSkills();
     if (scopeVal.startsWith('agent:')) {
       const aid = scopeVal.slice(6);
-      setTimeout(() => selectSkill('agent', name, aid), 300);
+      selectSkill('agent', name, aid);
     } else {
-      setTimeout(() => selectSkill('shared', name), 300);
+      selectSkill('shared', name);
     }
   } else {
     toast(res?.error || 'Failed to create', 'error');
