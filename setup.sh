@@ -79,8 +79,8 @@ else
     ok ".env exists"
 fi
 
-# ── 5. Create config dir ──
-mkdir -p config .logs memory workflows
+# ── 5. Create directories ──
+mkdir -p config .logs memory workflows bin
 
 # ── 6. Create the 'swarm' alias/wrapper ──
 # Make swarm executable
