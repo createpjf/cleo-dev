@@ -871,6 +871,11 @@ class Orchestrator:
         self.procs: list[mp.Process] = []
         self._shutting_down = False
 
+        # Ensure shared workspace directory exists
+        ws_cfg = self.config.get("workspace", {})
+        ws_path = ws_cfg.get("path", "workspace")
+        os.makedirs(ws_path, exist_ok=True)
+
         # Auto-generate team skill on every launch
         try:
             from core.team_skill import generate_team_skill

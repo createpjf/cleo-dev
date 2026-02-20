@@ -48,6 +48,7 @@ Endpoints:
   GET  /v1/memory/kb/notes           Shared knowledge base notes
   GET  /v1/memory/kb/moc             Map of Content
   GET  /v1/memory/kb/insights        Cross-agent insights feed
+  GET  /v1/channels                   Channel adapter status (Telegram/Discord/Feishu)
   GET  /v1/tools                      List built-in tools and availability
 
 Default port: 19789  (configurable via SWARM_GATEWAY_PORT or config)
@@ -75,6 +76,7 @@ _token: str = ""
 _config: dict = {}
 
 _SAFE_NAME = re.compile(r'^[a-zA-Z0-9_-]+$')
+_channel_manager = None  # ChannelManager instance (set by start_gateway)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -224,6 +226,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._handle_get_budget()
         elif path == "/v1/alerts":
             self._handle_get_alerts()
+        # ── Channel status ──
+        elif path == "/v1/channels":
+            self._handle_channels()
         # ── Cron route ──
         elif path == "/v1/cron":
             self._handle_cron_list()
@@ -1528,6 +1533,23 @@ class _Handler(BaseHTTPRequestHandler):
         self._json_response(200, {"ok": True, "pattern": pattern})
 
     # ══════════════════════════════════════════════════════════════════════════
+    #  CHANNEL HANDLERS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _handle_channels(self):
+        """GET /v1/channels — channel adapter status."""
+        global _channel_manager
+        if _channel_manager:
+            statuses = _channel_manager.get_status()
+        else:
+            statuses = []
+        self._json_response(200, {
+            "channels": statuses,
+            "total": len(statuses),
+            "manager_running": _channel_manager is not None,
+        })
+
+    # ══════════════════════════════════════════════════════════════════════════
     #  CRON HANDLERS
     # ══════════════════════════════════════════════════════════════════════════
 
@@ -1908,6 +1930,23 @@ def start_gateway(port: int = 0, token: str = "",
             start_scheduler(interval=30)
         except Exception as e:
             logger.warning("Cron scheduler failed to start: %s", e)
+
+        # Start channel manager (Telegram/Discord/Feishu)
+        global _channel_manager
+        try:
+            import yaml
+            cfg_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "config", "agents.yaml")
+            if os.path.exists(cfg_path):
+                with open(cfg_path) as f:
+                    full_config = yaml.safe_load(f) or {}
+                from adapters.channels.manager import start_channel_manager
+                _channel_manager = start_channel_manager(full_config)
+                if _channel_manager:
+                    logger.info("Channel manager started with adapters")
+        except Exception as e:
+            logger.warning("Channel manager failed to start: %s", e)
     else:
         logger.info("Gateway running on http://127.0.0.1:%d (foreground)",
                      port)
