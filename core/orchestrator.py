@@ -719,6 +719,9 @@ def _build_llm_for_agent(agent_def: dict, config: dict):
     elif provider == "openai":
         from adapters.llm.openai import OpenAIAdapter
         base = OpenAIAdapter(api_key=api_key, base_url=base_url)
+    elif provider == "minimax":
+        from adapters.llm.minimax import MinimaxAdapter
+        base = MinimaxAdapter(api_key=api_key, base_url=base_url)
     elif provider == "ollama":
         from adapters.llm.ollama import OllamaAdapter
         base = OllamaAdapter(api_key=api_key, base_url=base_url)
