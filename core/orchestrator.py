@@ -736,7 +736,9 @@ def _build_llm_for_agent(agent_def: dict, config: dict):
         from adapters.llm.ollama import OllamaAdapter
         base = OllamaAdapter(api_key=api_key, base_url=base_url)
     else:
-        raise ValueError(f"Unknown LLM provider: {provider}")
+        # Treat unknown providers as OpenAI-compatible (anthropic, deepseek, custom, etc.)
+        from adapters.llm.openai import OpenAIAdapter
+        base = OpenAIAdapter(api_key=api_key, base_url=base_url)
 
     # Wrap with resilience layer (retry + circuit breaker + model failover)
     from adapters.llm.resilience import ResilientLLM

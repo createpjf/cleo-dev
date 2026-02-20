@@ -2521,8 +2521,8 @@ async function loadAgents() {
       // Basic settings
       mhtml += '<div class="field-row">';
       mhtml += '<div class="field"><label>Model</label><input class="input" id="editModel" value="' + escHtml(a.model||'') + '"></div>';
-      mhtml += '<div class="field"><label>Provider</label><select class="input" id="editProvider">';
-      for (const p of ['flock','openai','ollama','anthropic','deepseek','custom']) {
+      mhtml += '<div class="field"><label>Provider</label><select class="input" id="editProvider" onchange="syncProviderBaseUrl(\'editProvider\',\'editBaseUrl\')">';
+      for (const p of ['flock','openai','minimax','ollama','anthropic','deepseek','custom']) {
         mhtml += '<option' + (p===(a.provider||'') ? ' selected' : '') + '>' + p + '</option>';
       }
       mhtml += '</select></div>';
@@ -2548,7 +2548,8 @@ async function loadAgents() {
       mhtml += '<div class="field-row">';
       const keyPlaceholder = a.api_key_masked ? 'Current: ' + a.api_key_masked : 'sk-xxxxxxxx';
       mhtml += '<div class="field"><label>API Key</label><input class="input" id="editApiKey" type="password" value="" placeholder="' + escHtml(keyPlaceholder) + '"><div style="font-size:10px;color:var(--fg3);margin-top:2px">Leave empty to keep current key</div></div>';
-      mhtml += '<div class="field"><label>Base URL</label><input class="input" id="editBaseUrl" value="' + escHtml(a.base_url||'') + '" placeholder="https://api.openai.com/v1"></div>';
+      const editProviderDefault = PROVIDER_BASE_URLS[a.provider||'flock'] || 'https://api.openai.com/v1';
+      mhtml += '<div class="field"><label>Base URL</label><input class="input" id="editBaseUrl" value="' + escHtml(a.base_url||'') + '" placeholder="' + escHtml(editProviderDefault) + '"></div>';
       mhtml += '</div>';
       mhtml += '</div>';
 
@@ -2597,6 +2598,23 @@ function closeAgentEditor() {
   document.getElementById('agentModalContainer').innerHTML = '';
 }
 
+const PROVIDER_BASE_URLS = {
+  flock:     'https://api.flock.io/v1',
+  openai:    'https://api.openai.com/v1',
+  minimax:   'https://api.minimax.io/v1',
+  ollama:    'http://localhost:11434/v1',
+  anthropic: 'https://api.anthropic.com/v1',
+  deepseek:  'https://api.deepseek.com/v1',
+  custom:    '',
+};
+function syncProviderBaseUrl(selectId, urlInputId) {
+  const provider = document.getElementById(selectId).value;
+  const urlInput = document.getElementById(urlInputId);
+  const defaultUrl = PROVIDER_BASE_URLS[provider] || '';
+  urlInput.value = defaultUrl;
+  urlInput.placeholder = defaultUrl || 'https://api.example.com/v1';
+}
+
 async function saveAgent(id) {
   const model = document.getElementById('editModel').value.trim();
   const provider = document.getElementById('editProvider').value;
@@ -2637,8 +2655,8 @@ function showCreateAgentModal() {
   // Model + Provider
   mhtml += '<div class="field-row">';
   mhtml += '<div class="field"><label>Model</label><input class="input" id="newAgentModel" placeholder="e.g. gpt-4o"></div>';
-  mhtml += '<div class="field"><label>Provider</label><select class="input" id="newAgentProvider">';
-  for (const p of ['flock','openai','ollama','anthropic','deepseek','custom']) {
+  mhtml += '<div class="field"><label>Provider</label><select class="input" id="newAgentProvider" onchange="syncProviderBaseUrl(\'newAgentProvider\',\'newAgentBaseUrl\')">';
+  for (const p of ['flock','openai','minimax','ollama','anthropic','deepseek','custom']) {
     mhtml += '<option>' + p + '</option>';
   }
   mhtml += '</select></div>';
