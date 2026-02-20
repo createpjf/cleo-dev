@@ -719,6 +719,9 @@ def _build_llm_for_agent(agent_def: dict, config: dict):
     elif provider == "openai":
         from adapters.llm.openai import OpenAIAdapter
         base = OpenAIAdapter(api_key=api_key, base_url=base_url)
+    elif provider == "minimax":
+        from adapters.llm.minimax import MinimaxAdapter
+        base = MinimaxAdapter(api_key=api_key, base_url=base_url)
     elif provider == "ollama":
         from adapters.llm.ollama import OllamaAdapter
         base = OllamaAdapter(api_key=api_key, base_url=base_url)
@@ -870,6 +873,11 @@ class Orchestrator:
         self.board  = TaskBoard()
         self.procs: list[mp.Process] = []
         self._shutting_down = False
+
+        # Ensure shared workspace directory exists
+        ws_cfg = self.config.get("workspace", {})
+        ws_path = ws_cfg.get("path", "workspace")
+        os.makedirs(ws_path, exist_ok=True)
 
         # Auto-generate team skill on every launch
         try:

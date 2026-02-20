@@ -214,6 +214,25 @@ class BaseAgent:
             logger.debug("[%s] task history load skipped: %s",
                          self.cfg.agent_id, e)
 
+        # Workspace awareness
+        workspace_section = ""
+        ws_path = "workspace"
+        if os.path.isdir(ws_path):
+            try:
+                ws_files = os.listdir(ws_path)
+                # Filter out hidden files like .gitkeep
+                ws_files = [f for f in ws_files if not f.startswith('.')]
+                ws_files = ws_files[:20]  # limit to 20 files
+                if ws_files:
+                    workspace_section = (
+                        f"\n\n## Shared Workspace (workspace/)\n"
+                        f"Files: {', '.join(ws_files)}\n"
+                        f"Use read_file/write_file with workspace/ prefix "
+                        f"to collaborate with other agents.\n"
+                    )
+            except Exception:
+                pass
+
         system_prompt = (
             f"You are {self.cfg.agent_id}.\n\n"
             f"## Role\n{self.cfg.role}"
@@ -222,7 +241,8 @@ class BaseAgent:
             f"{tools_section}"
             f"{docs_section}"
             f"{memory_block}"
-            f"{history_section}\n\n"
+            f"{history_section}"
+            f"{workspace_section}\n\n"
             f"## Shared Context\n{context_snap}\n"
         )
 
