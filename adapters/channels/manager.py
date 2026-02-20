@@ -53,7 +53,7 @@ class PendingChannelTask:
 
 class ChannelManager:
     """
-    Manages all channel adapters and routes messages to/from the Swarm system.
+    Manages all channel adapters and routes messages to/from the Cleo system.
 
     Usage:
         manager = ChannelManager(config)

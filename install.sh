@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════
-#  Swarm Agent Stack — Remote one-liner installer
-#  Usage:  curl -fsSL https://raw.githubusercontent.com/createpjf/swarm-dev/main/install.sh | bash
+#  Cleo Agent Stack — Remote one-liner installer
+#  Usage:  curl -fsSL https://raw.githubusercontent.com/createpjf/cleo-dev/main/install.sh | bash
 # ══════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -17,16 +17,16 @@ fail() { echo -e "  ${RED}✗${RESET} $1"; exit 1; }
 info() { echo -e "  ${DIM}$1${RESET}"; }
 warn() { echo -e "  ${YELLOW}!${RESET} $1"; }
 
-REPO="${SWARM_REPO:-https://github.com/createpjf/swarm-dev.git}"
-INSTALL_DIR="${SWARM_INSTALL_DIR:-$HOME/swarm-dev}"
+REPO="${CLEO_REPO:-https://github.com/createpjf/cleo-dev.git}"
+INSTALL_DIR="${CLEO_INSTALL_DIR:-$HOME/cleo-dev}"
 
 echo ""
-echo "  ███████╗██╗    ██╗ █████╗ ██████╗ ███╗   ███╗"
-echo "  ██╔════╝██║    ██║██╔══██╗██╔══██╗████╗ ████║"
-echo "  ███████╗██║ █╗ ██║███████║██████╔╝██╔████╔██║"
-echo "  ╚════██║██║███╗██║██╔══██║██╔══██╗██║╚██╔╝██║"
-echo "  ███████║╚███╔███╔╝██║  ██║██║  ██║██║ ╚═╝ ██║"
-echo "  ╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝"
+echo "   ██████╗██╗     ███████╗ ██████╗ "
+echo "  ██╔════╝██║     ██╔════╝██╔═══██╗"
+echo "  ██║     ██║     █████╗  ██║   ██║"
+echo "  ██║     ██║     ██╔══╝  ██║   ██║"
+echo "  ╚██████╗███████╗███████╗╚██████╔╝"
+echo "   ╚═════╝╚══════╝╚══════╝ ╚═════╝ "
 echo ""
 echo -e "  ${BOLD}One-liner installer${RESET}"
 echo ""
@@ -58,7 +58,7 @@ ok "Python: $($PYTHON --version)"
 # ── 3. Check install directory ──
 if [ -d "$INSTALL_DIR" ] && [ "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     warn "Directory already exists: $INSTALL_DIR"
-    info "To update: cd $INSTALL_DIR && swarm update"
+    info "To update: cd $INSTALL_DIR && cleo update"
     info "To reinstall: rm -rf $INSTALL_DIR && re-run this script"
     exit 0
 fi

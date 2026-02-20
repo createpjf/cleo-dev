@@ -7,6 +7,16 @@ Loads KEY=VALUE pairs into os.environ at startup.
 import os
 
 
+# Backwards compatibility: map old SWARM_* env vars to new CLEO_* names.
+# If user has SWARM_GATEWAY_PORT set but not CLEO_GATEWAY_PORT, honour the old one.
+_ENV_COMPAT = {
+    "SWARM_GATEWAY_PORT": "CLEO_GATEWAY_PORT",
+    "SWARM_GATEWAY_TOKEN": "CLEO_GATEWAY_TOKEN",
+    "SWARM_REPO": "CLEO_REPO",
+    "SWARM_INSTALL_DIR": "CLEO_INSTALL_DIR",
+}
+
+
 def load_dotenv(path: str = ""):
     """
     Load KEY=VALUE pairs from a .env file into os.environ.
@@ -35,3 +45,8 @@ def load_dotenv(path: str = ""):
             if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
                 value = value[1:-1]
             os.environ.setdefault(key, value)
+
+    # Backwards compatibility: honour old SWARM_* vars → CLEO_* aliases
+    for old_key, new_key in _ENV_COMPAT.items():
+        if old_key in os.environ and new_key not in os.environ:
+            os.environ[new_key] = os.environ[old_key]

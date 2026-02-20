@@ -7,7 +7,7 @@ Usage:
     from core.search import QMD, Indexer
     indexer = Indexer(QMD())
     indexer.reindex_all()
-    indexer.index_single("title", "content", "memory", agent_id="executor")
+    indexer.index_single("title", "content", "memory", agent_id="jerry")
 """
 
 from __future__ import annotations

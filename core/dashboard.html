@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Swarm Dashboard</title>
+<title>Cleo Dashboard</title>
 <style>
 /* ── Reset & Base ─────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a28;--bg4:#22223a;
-  --fg:#e0e0e6;--fg2:#888;--fg3:#555;
-  --accent:#7c6cf0;--accent2:#9d8ff7;
-  --green:#22c55e;--cyan:#06b6d4;--red:#ef4444;--yellow:#eab308;
-  --magenta:#d946ef;--orange:#f97316;
-  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.4);
-  --font:-apple-system,BlinkMacSystemFont,"SF Pro","PingFang SC","Noto Sans SC",sans-serif;
+  --bg:#000000;--bg2:#0a0a0a;--bg3:#161616;--bg4:#222222;
+  --fg:#ffffff;--fg2:#a0a0a0;--fg3:#666666;
+  --accent:#3773FF;--accent2:#5a8fff;
+  --green:#22c55e;--cyan:#03BFD4;--red:#ef4444;--yellow:#eab308;
+  --magenta:#9C59F3;--orange:#FF8B00;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.6);
+  --font:'TWK Everett','Inter','SF Pro Display','Helvetica Neue','Arial',sans-serif;
   --mono:"SF Mono","Fira Code","JetBrains Mono",Menlo,monospace;
   --sidebar-w:220px;
 }
@@ -42,13 +42,13 @@ a{color:var(--accent2);text-decoration:none}
 .key-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:10px;font-family:var(--mono)}
 .key-badge.set{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.2)}
 .key-badge.unset{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
-.key-badge.shared{background:rgba(124,108,240,.1);color:var(--accent2);border:1px solid rgba(124,108,240,.2)}
+.key-badge.shared{background:rgba(55,115,255,.1);color:var(--accent2);border:1px solid rgba(55,115,255,.2)}
 
 .nav-section{padding:12px 0 4px}
 .nav-section-title{padding:0 18px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--fg3)}
 .nav-item{display:flex;align-items:center;gap:10px;padding:7px 18px;cursor:pointer;color:var(--fg2);font-size:13px;font-weight:500;transition:.12s;border-left:3px solid transparent}
 .nav-item:hover{color:var(--fg);background:var(--bg3)}
-.nav-item.active{color:var(--accent2);background:rgba(124,108,240,.08);border-left-color:var(--accent)}
+.nav-item.active{color:var(--accent2);background:rgba(55,115,255,.08);border-left-color:var(--accent)}
 .nav-item .icon{font-size:15px;width:20px;text-align:center}
 
 .sidebar-footer{margin-top:auto;padding:12px 18px;border-top:1px solid var(--bg3);font-size:11px;color:var(--fg3);line-height:1.8}
@@ -138,11 +138,11 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 /* ── Agent Cards ──────────────────────────────────────────────── */
 .agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
 .agent-card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);padding:14px 16px;transition:.2s;cursor:pointer;display:flex;flex-direction:column;gap:6px}
-.agent-card:hover{border-color:var(--accent);box-shadow:0 0 20px rgba(124,108,240,.1)}
-.agent-card.editing{border-color:var(--accent);box-shadow:0 0 20px rgba(124,108,240,.15);border-bottom-left-radius:0;border-bottom-right-radius:0}
+.agent-card:hover{border-color:var(--accent);box-shadow:0 0 20px rgba(55,115,255,.1)}
+.agent-card.editing{border-color:var(--accent);box-shadow:0 0 20px rgba(55,115,255,.15);border-bottom-left-radius:0;border-bottom-right-radius:0}
 .agent-card-header{display:flex;align-items:center;gap:6px}
 .agent-name{font-size:15px;font-weight:700}
-.agent-working{font-size:10px;color:var(--cyan);font-weight:400;background:rgba(6,182,212,.1);padding:1px 6px;border-radius:4px}
+.agent-working{font-size:10px;color:var(--cyan);font-weight:400;background:rgba(3,191,212,.1);padding:1px 6px;border-radius:4px}
 .agent-card-model{font-family:var(--mono);font-size:12px;color:var(--accent2)}
 .agent-provider{color:var(--fg3);font-size:11px}
 .agent-card-skills{display:flex;flex-wrap:wrap;gap:4px}
@@ -207,7 +207,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .skill-group-title{padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg3);letter-spacing:.5px}
 .skill-item{padding:7px 12px;cursor:pointer;font-size:13px;color:var(--fg2);transition:.1s;border-left:3px solid transparent;display:flex;align-items:center;justify-content:space-between}
 .skill-item:hover{background:var(--bg3);color:var(--fg)}
-.skill-item.active{background:rgba(124,108,240,.08);color:var(--accent2);border-left-color:var(--accent)}
+.skill-item.active{background:rgba(55,115,255,.08);color:var(--accent2);border-left-color:var(--accent)}
 .skill-item .skill-scope{font-size:10px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--fg3)}
 
 .skills-editor{flex:1;display:flex;flex-direction:column;min-width:0}
@@ -287,24 +287,24 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .ov-status-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--fg2);padding:4px 10px;background:var(--bg3);border:1px solid var(--bg4);border-radius:6px;overflow:hidden;height:32px;box-sizing:border-box}
 .ov-status-item .status-icon{font-size:10px;flex-shrink:0}
 .ov-status-item .status-agent{font-weight:600;flex-shrink:0}
-.ov-status-item .status-agent.planner-d{color:var(--cyan)}
-.ov-status-item .status-agent.executor-d{color:var(--green)}
-.ov-status-item .status-agent.reviewer-d{color:var(--magenta)}
+.ov-status-item .status-agent.leo-d{color:var(--accent)}
+.ov-status-item .status-agent.jerry-d{color:var(--cyan)}
+.ov-status-item .status-agent.alic-d{color:var(--magenta)}
 .ov-status-item .status-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ov-status-item .status-time{font-family:var(--mono);font-size:9px;color:var(--fg3);flex-shrink:0}
 .ov-status-empty{font-size:11px;color:var(--fg3);padding:0 8px}
 .ov-header-sep{width:1px;height:24px;background:var(--bg4);flex-shrink:0}
 .ov-agents{display:flex;gap:6px;flex-shrink:0;align-items:center}
 .ov-agent-chip{display:flex;align-items:center;gap:6px;padding:4px 12px;background:var(--bg3);border:1px solid var(--bg4);border-radius:6px;height:32px;box-sizing:border-box;transition:.3s}
-.ov-agent-chip.active{border-color:var(--cyan);box-shadow:0 0 8px rgba(6,182,212,.12)}
-.ov-agent-chip.active.executor{border-color:var(--green);box-shadow:0 0 8px rgba(34,197,94,.12)}
-.ov-agent-chip.active.reviewer{border-color:var(--magenta);box-shadow:0 0 8px rgba(217,70,239,.12)}
+.ov-agent-chip.active{border-color:var(--accent);box-shadow:0 0 8px rgba(55,115,255,.12)}
+.ov-agent-chip.active.jerry{border-color:var(--cyan);box-shadow:0 0 8px rgba(3,191,212,.12)}
+.ov-agent-chip.active.alic{border-color:var(--magenta);box-shadow:0 0 8px rgba(156,89,243,.12)}
 .ov-agent-chip .chip-icon{font-size:12px;line-height:1}
 .ov-agent-chip .chip-name{font-size:10px;font-weight:700;color:var(--fg)}
 .ov-agent-chip .chip-dot{width:6px;height:6px;border-radius:50%;background:var(--fg3);flex-shrink:0}
-.ov-agent-chip.active .chip-dot{background:var(--cyan);animation:livePulse 1.2s infinite}
-.ov-agent-chip.active.executor .chip-dot{background:var(--green)}
-.ov-agent-chip.active.reviewer .chip-dot{background:var(--magenta)}
+.ov-agent-chip.active .chip-dot{background:var(--accent);animation:livePulse 1.2s infinite}
+.ov-agent-chip.active.jerry .chip-dot{background:var(--cyan)}
+.ov-agent-chip.active.alic .chip-dot{background:var(--magenta)}
 
 /* ── Subtask Tree ─────────────────────────────────────────── */
 .subtask-tree{flex-shrink:0;padding:0 4px;margin-bottom:8px;display:none}
@@ -334,18 +334,18 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .workflow-viz{display:none}
 .wf-pipeline{display:flex;align-items:center;justify-content:center;gap:0;padding:4px 0 10px}
 .wf-node{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:90px;padding:10px 14px;border-radius:10px;border:1.5px solid var(--bg4);background:var(--bg3);transition:.3s}
-.wf-node.active{border-color:var(--cyan);box-shadow:0 0 18px rgba(6,182,212,.15)}
-.wf-node.active.executor{border-color:var(--green);box-shadow:0 0 18px rgba(34,197,94,.15)}
-.wf-node.active.reviewer{border-color:var(--magenta);box-shadow:0 0 18px rgba(217,70,239,.15)}
+.wf-node.active{border-color:var(--accent);box-shadow:0 0 18px rgba(55,115,255,.15)}
+.wf-node.active.jerry{border-color:var(--cyan);box-shadow:0 0 18px rgba(3,191,212,.15)}
+.wf-node.active.alic{border-color:var(--magenta);box-shadow:0 0 18px rgba(156,89,243,.15)}
 .wf-avatar{font-size:22px;line-height:1}
 .wf-name{font-size:12px;font-weight:700;color:var(--fg)}
 .wf-status{font-size:10px;color:var(--fg3);font-family:var(--mono);transition:.3s}
-.wf-node.active .wf-status{color:var(--cyan)}
-.wf-node.active.executor .wf-status{color:var(--green)}
-.wf-node.active.reviewer .wf-status{color:var(--magenta)}
+.wf-node.active .wf-status{color:var(--accent)}
+.wf-node.active.jerry .wf-status{color:var(--cyan)}
+.wf-node.active.alic .wf-status{color:var(--magenta)}
 .wf-connector{display:flex;align-items:center;width:80px;height:2px;position:relative;margin:0 2px}
 .wf-line{width:100%;height:2px;background:var(--bg4);border-radius:1px;position:relative;overflow:visible}
-.wf-connector.active .wf-line{background:linear-gradient(90deg,var(--cyan),var(--accent))}
+.wf-connector.active .wf-line{background:linear-gradient(90deg,var(--accent),var(--cyan))}
 .wf-arrow{position:absolute;right:-3px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--fg3)}
 .wf-connector.active .wf-arrow{color:var(--accent)}
 .wf-stats{text-align:center;font-size:11px;color:var(--fg2);font-family:var(--mono);padding-top:2px}
@@ -358,9 +358,9 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .dispatch-entry:last-child{border-bottom:none}
 .dispatch-icon{width:16px;text-align:center;font-size:12px;flex-shrink:0}
 .dispatch-agent{font-weight:600;min-width:56px;flex-shrink:0}
-.dispatch-agent.planner-d{color:var(--cyan)}
-.dispatch-agent.executor-d{color:var(--green)}
-.dispatch-agent.reviewer-d{color:var(--magenta)}
+.dispatch-agent.leo-d{color:var(--accent)}
+.dispatch-agent.jerry-d{color:var(--cyan)}
+.dispatch-agent.alic-d{color:var(--magenta)}
 .dispatch-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dispatch-tokens{font-family:var(--mono);font-size:9px;color:var(--fg3);flex-shrink:0}
 .dispatch-tokens .tok-in{color:var(--cyan)}
@@ -374,18 +374,18 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 /* ── Workflow: Data Packet Animation ─────────────────────────── */
 .wf-packet{position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;opacity:0;pointer-events:none;filter:blur(0px);z-index:5}
 .wf-packet.animating{animation:wfPacketMove 1s ease-in-out forwards}
-.wf-packet.planner-packet{background:var(--cyan);box-shadow:0 0 10px var(--cyan),0 0 20px rgba(6,182,212,.3)}
-.wf-packet.executor-packet{background:var(--green);box-shadow:0 0 10px var(--green),0 0 20px rgba(34,197,94,.3)}
-.wf-packet.reviewer-packet{background:var(--magenta);box-shadow:0 0 10px var(--magenta),0 0 20px rgba(217,70,239,.3)}
+.wf-packet.leo-packet{background:var(--accent);box-shadow:0 0 10px var(--accent),0 0 20px rgba(55,115,255,.3)}
+.wf-packet.jerry-packet{background:var(--cyan);box-shadow:0 0 10px var(--cyan),0 0 20px rgba(3,191,212,.3)}
+.wf-packet.alic-packet{background:var(--magenta);box-shadow:0 0 10px var(--magenta),0 0 20px rgba(156,89,243,.3)}
 @keyframes wfPacketMove{0%{left:0;opacity:0;transform:translate(-50%,-50%) scale(.4)}10%{opacity:1;transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.2)}90%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{left:100%;opacity:0;transform:translate(-50%,-50%) scale(.4)}}
 
 /* ── Workflow: Pulse ring on receiving node ───────────────────── */
 .wf-node.receiving{animation:wfReceivePulse .6s ease}
-@keyframes wfReceivePulse{0%{box-shadow:0 0 0 0 rgba(124,108,240,.4)}50%{box-shadow:0 0 0 12px rgba(124,108,240,0)}100%{box-shadow:none}}
-.wf-node.receiving.executor{animation-name:wfReceivePulseGreen}
-@keyframes wfReceivePulseGreen{0%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 12px rgba(34,197,94,0)}100%{box-shadow:none}}
-.wf-node.receiving.reviewer{animation-name:wfReceivePulseMagenta}
-@keyframes wfReceivePulseMagenta{0%{box-shadow:0 0 0 0 rgba(217,70,239,.4)}50%{box-shadow:0 0 0 12px rgba(217,70,239,0)}100%{box-shadow:none}}
+@keyframes wfReceivePulse{0%{box-shadow:0 0 0 0 rgba(55,115,255,.4)}50%{box-shadow:0 0 0 12px rgba(55,115,255,0)}100%{box-shadow:none}}
+.wf-node.receiving.jerry{animation-name:wfReceivePulseCyan}
+@keyframes wfReceivePulseCyan{0%{box-shadow:0 0 0 0 rgba(3,191,212,.4)}50%{box-shadow:0 0 0 12px rgba(3,191,212,0)}100%{box-shadow:none}}
+.wf-node.receiving.alic{animation-name:wfReceivePulsePurple}
+@keyframes wfReceivePulsePurple{0%{box-shadow:0 0 0 0 rgba(156,89,243,.4)}50%{box-shadow:0 0 0 12px rgba(156,89,243,0)}100%{box-shadow:none}}
 
 /* ── Overview: Chat Messages (bottom panel) ──────────────────── */
 .chat-messages{flex:1;overflow-y:auto;padding:16px 12px;display:flex;flex-direction:column;gap:12px;min-height:0}
@@ -405,17 +405,17 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 @keyframes chatIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
 .chat-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:var(--bg4)}
-.chat-avatar.planner{background:rgba(6,182,212,.15);border:1px solid rgba(6,182,212,.3)}
-.chat-avatar.executor{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3)}
-.chat-avatar.reviewer{background:rgba(217,70,239,.15);border:1px solid rgba(217,70,239,.3)}
-.chat-avatar.user-av{background:rgba(124,108,240,.15);border:1px solid rgba(124,108,240,.3)}
+.chat-avatar.leo{background:rgba(55,115,255,.15);border:1px solid rgba(55,115,255,.3)}
+.chat-avatar.jerry{background:rgba(3,191,212,.15);border:1px solid rgba(3,191,212,.3)}
+.chat-avatar.alic{background:rgba(156,89,243,.15);border:1px solid rgba(156,89,243,.3)}
+.chat-avatar.user-av{background:rgba(55,115,255,.15);border:1px solid rgba(55,115,255,.3)}
 
 .chat-bubble{padding:8px 12px;border-radius:10px;font-size:13px;line-height:1.55;word-break:break-word}
 .chat-bubble.user-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:3px}
 .chat-bubble.agent-bubble{background:var(--bg2);border:1px solid var(--bg3);border-bottom-left-radius:3px}
-.chat-bubble.agent-bubble.planner-bubble{border-left:3px solid var(--cyan)}
-.chat-bubble.agent-bubble.executor-bubble{border-left:3px solid var(--green)}
-.chat-bubble.agent-bubble.reviewer-bubble{border-left:3px solid var(--magenta)}
+.chat-bubble.agent-bubble.leo-bubble{border-left:3px solid var(--accent)}
+.chat-bubble.agent-bubble.jerry-bubble{border-left:3px solid var(--cyan)}
+.chat-bubble.agent-bubble.alic-bubble{border-left:3px solid var(--magenta)}
 .chat-bubble.system-bubble{background:var(--bg3);color:var(--fg2);font-size:12px;padding:5px 12px;border-radius:14px}
 .chat-bubble.assistant-bubble{background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;border-bottom-left-radius:3px;padding:12px 16px;font-size:13px;line-height:1.7}
 .chat-bubble.assistant-bubble .asst-header{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--fg3)}
@@ -436,7 +436,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .chat-bubble.assistant-bubble .asst-body code{background:var(--bg);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:12px}
 .chat-bubble.assistant-bubble .asst-body hr{border:none;border-top:1px solid var(--bg4);margin:8px 0}
 .chat-bubble.assistant-bubble .asst-body del{color:var(--fg3);text-decoration:line-through}
-.chat-bubble.assistant-bubble .asst-body blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:6px 0;color:var(--fg2);background:rgba(124,108,240,.04);border-radius:0 4px 4px 0}
+.chat-bubble.assistant-bubble .asst-body blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:6px 0;color:var(--fg2);background:rgba(55,115,255,.04);border-radius:0 4px 4px 0}
 .chat-bubble.assistant-bubble .asst-body table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
 .chat-bubble.assistant-bubble .asst-body th{background:var(--bg3);color:var(--fg);font-weight:700;padding:6px 10px;border:1px solid var(--bg4);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
 .chat-bubble.assistant-bubble .asst-body td{padding:5px 10px;border:1px solid var(--bg4);color:var(--fg2)}
@@ -449,9 +449,9 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 
 .chat-bubble pre{background:var(--bg);padding:8px 10px;border-radius:6px;font-family:var(--mono);font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;max-height:200px;overflow-y:auto;margin:6px 0 2px}
 .chat-bubble .chat-agent-name{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.chat-bubble .chat-agent-name.planner-name{color:var(--cyan)}
-.chat-bubble .chat-agent-name.executor-name{color:var(--green)}
-.chat-bubble .chat-agent-name.reviewer-name{color:var(--magenta)}
+.chat-bubble .chat-agent-name.leo-name{color:var(--accent)}
+.chat-bubble .chat-agent-name.jerry-name{color:var(--cyan)}
+.chat-bubble .chat-agent-name.alic-name{color:var(--magenta)}
 .chat-bubble .chat-score{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-top:4px}
 .chat-bubble .chat-task-id{font-family:var(--mono);font-size:10px;color:var(--fg3);margin-top:2px}
 .chat-bubble .chat-tokens{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--fg3);margin-top:3px;padding:2px 6px;background:var(--bg);border-radius:4px}
@@ -473,12 +473,12 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .chat-live-status{display:flex;gap:8px;max-width:85%;animation:chatIn .2s ease;align-self:flex-start}
 .chat-live-inner{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;border-bottom-left-radius:3px;font-size:12px;color:var(--fg2)}
 .chat-live-inner .live-dot{width:7px;height:7px;border-radius:50%;animation:livePulse 1.2s infinite}
-.chat-live-inner.planner-live{border-left:3px solid var(--cyan)}
-.chat-live-inner.planner-live .live-dot{background:var(--cyan)}
-.chat-live-inner.executor-live{border-left:3px solid var(--green)}
-.chat-live-inner.executor-live .live-dot{background:var(--green)}
-.chat-live-inner.reviewer-live{border-left:3px solid var(--magenta)}
-.chat-live-inner.reviewer-live .live-dot{background:var(--magenta)}
+.chat-live-inner.leo-live{border-left:3px solid var(--accent)}
+.chat-live-inner.leo-live .live-dot{background:var(--accent)}
+.chat-live-inner.jerry-live{border-left:3px solid var(--cyan)}
+.chat-live-inner.jerry-live .live-dot{background:var(--cyan)}
+.chat-live-inner.alic-live{border-left:3px solid var(--magenta)}
+.chat-live-inner.alic-live .live-dot{background:var(--magenta)}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.3}}
 
 /* ── Overview: Chat Input ────────────────────────────────────── */
@@ -492,7 +492,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .chat-input-actions{display:flex;gap:2px;flex-shrink:0}
 .chat-action-btn{width:34px;height:34px;border-radius:8px;border:1px solid var(--bg4);background:var(--bg3);color:var(--fg2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:.15s;flex-shrink:0}
 .chat-action-btn:hover{border-color:var(--accent);color:var(--fg)}
-.chat-action-btn.active{background:rgba(124,108,240,.15);border-color:var(--accent);color:var(--accent2)}
+.chat-action-btn.active{background:rgba(55,115,255,.15);border-color:var(--accent);color:var(--accent2)}
 .chat-textarea{flex:1;background:var(--bg3);border:1px solid var(--bg4);color:var(--fg);padding:9px 12px;border-radius:10px;font-size:13px;font-family:var(--font);outline:none;resize:none;line-height:1.5;max-height:120px;overflow-y:auto;min-height:38px}
 .chat-textarea:focus{border-color:var(--accent)}
 .chat-textarea::placeholder{color:var(--fg3)}
@@ -500,8 +500,8 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .chat-send:disabled{opacity:.3}
 
 /* ── Chat: Search indicator ──────────────────────────────────── */
-.chat-search-indicator{display:flex;align-items:center;gap:6px;padding:4px 10px;margin-bottom:4px;font-size:11px;color:var(--cyan);background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.15);border-radius:8px}
-.chat-search-indicator .search-spinner{width:12px;height:12px;border:2px solid rgba(6,182,212,.2);border-top-color:var(--cyan);border-radius:50%;animation:spin .6s linear infinite}
+.chat-search-indicator{display:flex;align-items:center;gap:6px;padding:4px 10px;margin-bottom:4px;font-size:11px;color:var(--cyan);background:rgba(3,191,212,.06);border:1px solid rgba(3,191,212,.15);border-radius:8px}
+.chat-search-indicator .search-spinner{width:12px;height:12px;border:2px solid rgba(3,191,212,.2);border-top-color:var(--cyan);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── Chat: Image in messages ─────────────────────────────────── */
@@ -542,7 +542,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 <!-- ═══════════════ Sidebar ═══════════════ -->
 <nav class="sidebar">
   <div class="sidebar-logo">
-    ⬡ <span>Swarm</span>
+    ⬡ <span>Cleo</span>
     <span class="status-dot" id="statusDot"></span>
   </div>
 
@@ -616,9 +616,9 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
     </div>
     <div class="ov-header-sep"></div>
     <div class="ov-agents" id="ovAgents">
-      <div class="ov-agent-chip" id="chipPlanner"><span class="chip-icon">📋</span><span class="chip-name">Planner</span><span class="chip-dot"></span></div>
-      <div class="ov-agent-chip" id="chipExecutor"><span class="chip-icon">⚙️</span><span class="chip-name">Executor</span><span class="chip-dot"></span></div>
-      <div class="ov-agent-chip" id="chipReviewer"><span class="chip-icon">🧠</span><span class="chip-name">Advisor</span><span class="chip-dot"></span></div>
+      <div class="ov-agent-chip" id="chipPlanner"><span class="chip-icon">📋</span><span class="chip-name">Leo</span><span class="chip-dot"></span></div>
+      <div class="ov-agent-chip" id="chipExecutor"><span class="chip-icon">⚙️</span><span class="chip-name">Jerry</span><span class="chip-dot"></span></div>
+      <div class="ov-agent-chip" id="chipReviewer"><span class="chip-icon">🧠</span><span class="chip-name">Alic</span><span class="chip-dot"></span></div>
     </div>
   </div>
 
@@ -631,7 +631,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
     <div id="wfPacket1"></div><div id="wfPacket2"></div>
   </div>
 
-  <!-- ═══ SUBTASK TREE (shows when planner decomposes a task) ═══ -->
+  <!-- ═══ SUBTASK TREE (shows when leo decomposes a task) ═══ -->
   <div class="subtask-tree" id="subtaskTree"></div>
 
   <!-- ═══ CHATBOX (takes most of the space) ═══ -->
@@ -640,7 +640,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
       <div class="chat-welcome">
         <div class="chat-welcome-icon">⬡</div>
         <div class="chat-welcome-text">What can I help you with?</div>
-        <div class="chat-welcome-sub">Your task will be planned, executed, and quality-checked by the Swarm agent team</div>
+        <div class="chat-welcome-sub">Your task will be planned, executed, and quality-checked by the Cleo agent team</div>
       </div>
     </div>
     <div class="chat-input-area">
@@ -652,7 +652,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
           <input type="file" id="chatFileInput" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.py,.js,.ts" style="display:none" onchange="handleFileSelect(this)">
         </div>
         <textarea class="chat-textarea" id="chatInput" rows="1"
-                  placeholder="Message Swarm…"></textarea>
+                  placeholder="Message Cleo…"></textarea>
         <button class="btn chat-send" id="chatSend" onclick="chatSubmit()">Send ↑</button>
       </div>
     </div>
@@ -946,7 +946,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 
 <script>
 /* ══════════════════════════════════════════════════════════════════
-   Swarm Dashboard — Vanilla JS — OpenClaw-inspired Sidebar
+   Cleo Dashboard — Vanilla JS — OpenClaw-inspired Sidebar
    ══════════════════════════════════════════════════════════════════ */
 
 const API = '';  // same origin
@@ -955,12 +955,12 @@ let TOKEN = (function() {
   const p = new URLSearchParams(window.location.search);
   const t = p.get('token');
   if (t) {
-    localStorage.setItem('swarm_token', t);
+    localStorage.setItem('cleo_token', t);
     // Clean URL without reloading
     history.replaceState(null, '', window.location.pathname);
     return t;
   }
-  return localStorage.getItem('swarm_token') || '';
+  return localStorage.getItem('cleo_token') || '';
 })();
 
 // ── State ───────────────────────────────────────────────────────
@@ -996,7 +996,7 @@ async function api(path) {
     const r = await fetch(API + path, {headers: authHeaders()});
     if (r.status === 401) {
       const t = prompt('Enter Gateway token:');
-      if (t) { TOKEN = t; localStorage.setItem('swarm_token', t); return api(path); }
+      if (t) { TOKEN = t; localStorage.setItem('cleo_token', t); return api(path); }
       return null;
     }
     return await r.json();
@@ -1008,7 +1008,7 @@ async function apiPost(path, body) {
     const r = await fetch(API + path, {method:'POST', headers: authHeaders(), body: JSON.stringify(body)});
     if (r.status === 401) {
       const t = prompt('Enter Gateway token:');
-      if (t) { TOKEN = t; localStorage.setItem('swarm_token', t); return apiPost(path, body); }
+      if (t) { TOKEN = t; localStorage.setItem('cleo_token', t); return apiPost(path, body); }
       return null;
     }
     return await r.json();
@@ -1020,7 +1020,7 @@ async function apiPut(path, body) {
     const r = await fetch(API + path, {method:'PUT', headers: authHeaders(), body: JSON.stringify(body)});
     if (r.status === 401) {
       const t = prompt('Enter Gateway token:');
-      if (t) { TOKEN = t; localStorage.setItem('swarm_token', t); return apiPut(path, body); }
+      if (t) { TOKEN = t; localStorage.setItem('cleo_token', t); return apiPut(path, body); }
       return null;
     }
     return await r.json();
@@ -1032,7 +1032,7 @@ async function apiDelete(path) {
     const r = await fetch(API + path, {method:'DELETE', headers: authHeaders()});
     if (r.status === 401) {
       const t = prompt('Enter Gateway token:');
-      if (t) { TOKEN = t; localStorage.setItem('swarm_token', t); return apiDelete(path); }
+      if (t) { TOKEN = t; localStorage.setItem('cleo_token', t); return apiDelete(path); }
       return null;
     }
     return await r.json();
@@ -1188,15 +1188,15 @@ function updateAgentStatusDots() {
 // ══════════════════════════════════════════════════════════════════
 
 const AGENT_META = {
-  planner:  {emoji:'📋', color:'var(--cyan)',    cls:'planner'},
-  executor: {emoji:'⚙️', color:'var(--green)',   cls:'executor'},
-  reviewer: {emoji:'🧠', color:'var(--magenta)', cls:'reviewer'},
-  search:   {emoji:'🌐', color:'var(--cyan)',    cls:'planner'},
+  leo:      {emoji:'📋', color:'var(--accent)',  cls:'leo',    label:'Leo'},
+  jerry:    {emoji:'⚙️', color:'var(--cyan)',    cls:'jerry',  label:'Jerry'},
+  alic:     {emoji:'🧠', color:'var(--magenta)', cls:'alic',   label:'Alic'},
+  search:   {emoji:'🌐', color:'var(--accent)',  cls:'leo',    label:'Search'},
 };
 
 function agentMeta(agentId) {
   const id = (agentId||'').toLowerCase();
-  return AGENT_META[id] || {emoji:'🤖', color:'var(--fg2)', cls:'executor'};
+  return AGENT_META[id] || {emoji:'🤖', color:'var(--fg2)', cls:'jerry'};
 }
 
 // ── State ──
@@ -1319,8 +1319,8 @@ function updateHeaderStatuses() {
   let html = '';
   for (const d of latest.reverse()) {
     const agentCls = d.agent ? d.agent.toLowerCase().replace(/[^a-z]/g,'') : '';
-    const colorCls = agentCls.includes('planner') ? 'planner-d' : agentCls.includes('executor') ? 'executor-d' : agentCls.includes('reviewer') ? 'reviewer-d' : '';
-    const icon = agentCls.includes('planner') ? '📋' : agentCls.includes('executor') ? '⚙️' : agentCls.includes('reviewer') ? '🧠' : '▸';
+    const colorCls = agentCls.includes('leo') ? 'leo-d' : agentCls.includes('jerry') ? 'jerry-d' : agentCls.includes('alic') ? 'alic-d' : '';
+    const icon = agentCls.includes('leo') ? '📋' : agentCls.includes('jerry') ? '⚙️' : agentCls.includes('alic') ? '🧠' : '▸';
     html += '<div class="ov-status-item">'
       + '<span class="status-icon">' + icon + '</span>'
       + '<span class="status-agent ' + colorCls + '">' + escHtml(d.agent||'system') + '</span>'
@@ -1375,7 +1375,7 @@ function renderChatMsgHtml(m) {
       }
     } else if (m.score != null) {
       const c = scoreColor(m.score);
-      scoreHtml = '<div style="margin-top:8px"><span class="chat-score" style="background:rgba(124,108,240,.1);color:' + c + '">'
+      scoreHtml = '<div style="margin-top:8px"><span class="chat-score" style="background:rgba(55,115,255,.1);color:' + c + '">'
         + m.score + '/100</span>';
       if (m.scoreComment) scoreHtml += ' <span style="font-size:11px;color:var(--fg2)">' + escHtml(truncate(m.scoreComment, 120)) + '</span>';
       scoreHtml += '</div>';
@@ -1400,7 +1400,7 @@ function renderChatMsgHtml(m) {
         + '</div>';
     }
     const aM = agentMeta(m.agent || '');
-    const agentLabel = m.agent || 'Swarm';
+    const agentLabel = m.agent || 'Cleo';
     const avatarLetter = agentLabel.charAt(0).toUpperCase();
     const avatarBg = m.agent ? aM.color : 'linear-gradient(135deg,var(--accent),var(--cyan))';
     return '<div class="chat-msg assistant" data-msg-id="' + m.id + '">'
@@ -1563,7 +1563,7 @@ function renderChat() {
     chatLastRenderedIdx = 0;
     container.innerHTML = '<div class="chat-welcome"><div class="chat-welcome-icon">⬡</div>'
       + '<div class="chat-welcome-text">What can I help you with?</div>'
-      + '<div class="chat-welcome-sub">Your task will be planned, executed, and quality-checked by the Swarm agent team</div></div>';
+      + '<div class="chat-welcome-sub">Your task will be planned, executed, and quality-checked by the Cleo agent team</div></div>';
     return;
   }
   // First render: replace welcome
@@ -1644,7 +1644,7 @@ function toggleSearchMode() {
   const btn = document.getElementById('searchToggle');
   btn.classList.toggle('active', searchMode);
   const input = document.getElementById('chatInput');
-  input.placeholder = searchMode ? '🔍 Enter search query…' : 'Message Swarm…';
+  input.placeholder = searchMode ? '🔍 Enter search query…' : 'Message Cleo…';
 }
 
 async function braveSearch(query) {
@@ -1761,7 +1761,7 @@ function findTokensForAgent(agentId, claimedAt, completedAt) {
       out.execIn += c.prompt_tokens || 0;
       out.execOut += c.completion_tokens || 0;
     }
-    if ((cAid === 'reviewer' || cAid === 'advisor') && aid !== 'reviewer' && aid !== 'advisor') {
+    if ((cAid === 'alic' || cAid === 'advisor') && aid !== 'alic' && aid !== 'advisor') {
       out.reviewIn += c.prompt_tokens || 0;
       out.reviewOut += c.completion_tokens || 0;
     }
@@ -1947,7 +1947,7 @@ function updateCostBadge(taskId, costUsd) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  SUBTASK TREE — visual decomposition of planner subtasks
+//  SUBTASK TREE — visual decomposition of leo subtasks
 // ══════════════════════════════════════════════════════════════════
 
 function renderSubtaskTree(tasks) {
@@ -2052,7 +2052,7 @@ function diffAndRoute(prev, current) {
       seen.add('claimed');
       addDispatch('⚡', agent, 'Working on task…', {taskId});
       const aidLower = (agent || '').toLowerCase();
-      if (aidLower === 'executor') firePacket(1, 'planner');
+      if (aidLower === 'jerry') firePacket(1, 'leo');
     }
 
     // ── Sent to review → TOP dispatch (with intermediate result) ──
@@ -2069,10 +2069,10 @@ function diffAndRoute(prev, current) {
       } else {
         addDispatch('📤', agent, '🧠 Sent to advisor', {taskId});
       }
-      if (!isSimple) firePacket(2, 'reviewer');
+      if (!isSimple) firePacket(2, 'alic');
     }
 
-    // ── Critique → executor needs to fix ──
+    // ── Critique → jerry needs to fix ──
     if (newStatus === 'critique' && oldStatus !== 'critique' && !seen.has('critique')) {
       seen.add('critique');
       const critique = task.critique || {};
@@ -2103,7 +2103,7 @@ function diffAndRoute(prev, current) {
         const scores = task.review_scores || [];
         if (scores.length) {
           const last = scores[scores.length - 1];
-          addDispatch('⭐', last.reviewer || 'reviewer', 'Reviewed', {
+          addDispatch('⭐', last.reviewer || 'alic', 'Reviewed', {
             taskId, score: last.score, scoreComment: last.comment,
             promptTokens: agentTokens.reviewIn, completionTokens: agentTokens.reviewOut,
           });
@@ -2142,15 +2142,15 @@ function diffAndRoute(prev, current) {
       addChatMsg('system', '✗ Task failed: ' + truncate(errText, 100), {taskId});
     }
 
-    // ── Planner direct completion (pending → completed, no review) ──
-    if (newStatus === 'completed' && oldStatus === 'pending' && !seen.has('review') && task.result && !seen.has('planner_direct')) {
-      seen.add('planner_direct');
+    // ── Leo direct completion (pending → completed, no review) ──
+    if (newStatus === 'completed' && oldStatus === 'pending' && !seen.has('review') && task.result && !seen.has('leo_direct')) {
+      seen.add('leo_direct');
       const agentTokens = findTokensForAgent(agent, task.claimed_at, task.completed_at);
       addDispatch('📋', agent, 'Plan generated', {
         taskId, result: task.result,
         promptTokens: agentTokens.execIn, completionTokens: agentTokens.execOut,
       });
-      firePacket(1, 'planner');
+      firePacket(1, 'leo');
     }
   }
 }
@@ -2177,7 +2177,7 @@ function firePacket(connIdx, packetType) {
   }
 }
 
-let wfPrevState = {planner:false, executor:false, reviewer:false};
+let wfPrevState = {leo:false, jerry:false, alic:false};
 
 function updateWorkflow(tasks) {
   const entries = Object.values(tasks);
@@ -2190,9 +2190,9 @@ function updateWorkflow(tasks) {
     else if (t.status === 'claimed' || t.status === 'review' || t.status === 'critique') {
       working++;
       const aid = (t.agent_id || '').toLowerCase();
-      if (aid === 'planner') activePlanner = true;
-      else if (aid === 'executor') activeExecutor = true;
-      else if (aid === 'reviewer') activeReviewer = true;
+      if (aid === 'leo') activePlanner = true;
+      else if (aid === 'jerry') activeExecutor = true;
+      else if (aid === 'alic') activeReviewer = true;
       if (t.status === 'review') activeReviewer = true;
       if (t.status === 'critique') { activeExecutor = true; }
     }
@@ -2200,9 +2200,9 @@ function updateWorkflow(tasks) {
 
   for (const [aid, hb] of Object.entries(heartbeatData)) {
     if (hb.online && hb.status === 'working') {
-      if (aid === 'planner') activePlanner = true;
-      if (aid === 'executor') activeExecutor = true;
-      if (aid === 'reviewer') activeReviewer = true;
+      if (aid === 'leo') activePlanner = true;
+      if (aid === 'jerry') activeExecutor = true;
+      if (aid === 'alic') activeReviewer = true;
     }
   }
 
@@ -2211,8 +2211,8 @@ function updateWorkflow(tasks) {
   const en = document.getElementById('wfExecutor');
   const rn = document.getElementById('wfReviewer');
   if (pn) pn.className = 'wf-node' + (activePlanner ? ' active' : '');
-  if (en) en.className = 'wf-node' + (activeExecutor ? ' active executor' : '');
-  if (rn) rn.className = 'wf-node' + (activeReviewer ? ' active reviewer' : '');
+  if (en) en.className = 'wf-node' + (activeExecutor ? ' active jerry' : '');
+  if (rn) rn.className = 'wf-node' + (activeReviewer ? ' active alic' : '');
 
   const ps = document.getElementById('wfPlannerStatus');
   const es = document.getElementById('wfExecutorStatus');
@@ -2226,7 +2226,7 @@ function updateWorkflow(tasks) {
   if (c1) c1.className = 'wf-connector' + ((activePlanner || activeExecutor) ? ' active' : '');
   if (c2) c2.className = 'wf-connector' + ((activeExecutor || activeReviewer) ? ' active' : '');
 
-  wfPrevState = {planner:activePlanner, executor:activeExecutor, reviewer:activeReviewer};
+  wfPrevState = {leo:activePlanner, jerry:activeExecutor, alic:activeReviewer};
 
   const statsEl = document.getElementById('wfStats');
   if (statsEl) {
@@ -2245,8 +2245,8 @@ function updateWorkflow(tasks) {
   const ce = document.getElementById('chipExecutor');
   const cr = document.getElementById('chipReviewer');
   if (cp) cp.className = 'ov-agent-chip' + (activePlanner ? ' active' : '');
-  if (ce) ce.className = 'ov-agent-chip' + (activeExecutor ? ' active executor' : '');
-  if (cr) cr.className = 'ov-agent-chip' + (activeReviewer ? ' active reviewer' : '');
+  if (ce) ce.className = 'ov-agent-chip' + (activeExecutor ? ' active jerry' : '');
+  if (cr) cr.className = 'ov-agent-chip' + (activeReviewer ? ' active alic' : '');
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3091,7 +3091,7 @@ async function loadTools() {
     h += '<div style="margin-bottom:6px"><span style="font-weight:600;color:var(--accent)">' + escHtml(pname) + '</span>';
     h += ' <span style="color:var(--muted);font-size:11px">— ' + escHtml(String(toolsStr)) + '</span></div>';
   }
-  h += '<div style="margin-top:10px;font-size:11px;color:var(--muted)">Configure in agents.yaml under each agent\'s <code>tools:</code> key, or use <code>swarm configure --section tools</code></div>';
+  h += '<div style="margin-top:10px;font-size:11px;color:var(--muted)">Configure in agents.yaml under each agent\'s <code>tools:</code> key, or use <code>cleo configure --section tools</code></div>';
   h += '</div>';
 
   document.getElementById('toolsContent').innerHTML = h;
@@ -3453,7 +3453,7 @@ async function regenerateToken() {
   const data = await apiPut('/v1/config/gateway', {action:'regenerate_token'});
   if (data && data.ok) {
     TOKEN = data.token;
-    localStorage.setItem('swarm_token', TOKEN);
+    localStorage.setItem('cleo_token', TOKEN);
     toast('Token regenerated');
     loadGatewayInfo();
   } else {

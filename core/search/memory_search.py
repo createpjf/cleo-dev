@@ -4,7 +4,7 @@ Unified memory search interface — wraps QMD FTS5 for agent-facing queries.
 
 Usage:
     from core.search import MemorySearch
-    ms = MemorySearch(agent_id="executor")
+    ms = MemorySearch(agent_id="jerry")
     results = ms.search("error handling patterns")
     grouped = ms.search_all("authentication")
 """

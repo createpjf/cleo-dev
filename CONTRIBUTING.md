@@ -1,10 +1,10 @@
-# Contributing to Swarm
+# Contributing to Cleo
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/createpjf/swarm-dev.git
-cd swarm-dev
+git clone https://github.com/createpjf/cleo-dev.git
+cd cleo-dev
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -12,7 +12,7 @@ pip install -e ".[dev]"
 
 ## Project Layout
 
-- `main.py` — CLI entry point, all `swarm <cmd>` commands
+- `main.py` — CLI entry point, all `cleo <cmd>` commands
 - `core/` — Orchestrator, agents, task board, gateway, workflows
 - `adapters/` — LLM providers, memory backends, chain integrations
 - `reputation/` — Scoring engine, evolution, peer review
@@ -34,7 +34,7 @@ pip install -e ".[dev]"
 1. Create a branch: `git checkout -b feature/my-change`
 2. Make focused, minimal changes
 3. Run tests: `pytest tests/`
-4. Run health check: `swarm doctor`
+4. Run health check: `cleo doctor`
 5. Submit a PR with a clear description
 
 ## Adding a New LLM Adapter
@@ -50,12 +50,12 @@ pip install -e ".[dev]"
 1. Create `workflows/my_workflow.yaml`
 2. Define steps with `id`, `agent`, `prompt`, and `depends_on`
 3. Use `{{task}}` for input and `{{step_id.result}}` for step results
-4. Test: `swarm workflow run my_workflow --input "test task"`
+4. Test: `cleo workflow run my_workflow --input "test task"`
 
 ## Testing
 
 ```bash
 pytest tests/                    # all tests
 pytest tests/test_task_board.py  # specific module
-swarm doctor                     # integration health check
+cleo doctor                     # integration health check
 ```

@@ -97,7 +97,7 @@ SAFE_PROXY_FACTORY_ABI = [
 
 class GnosisSafeAdapter:
     """
-    Gnosis Safe multi-sig guardian for Swarm on-chain operations.
+    Gnosis Safe multi-sig guardian for Cleo on-chain operations.
     Controls PKP NFTs and ERC-8004 Identity NFTs.
     Day-to-day signing uses PKP (via Lit Actions); management operations
     (transfer, burn, upgrade) require Safe multi-sig approval.

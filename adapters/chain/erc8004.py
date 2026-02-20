@@ -34,7 +34,7 @@ class IPFSHelper:
     def available(self) -> bool:
         return bool(self.pinata_jwt)
 
-    def upload_json(self, data: dict, name: str = "swarm-data") -> str:
+    def upload_json(self, data: dict, name: str = "cleo-data") -> str:
         """
         Upload JSON to IPFS. Returns CID string.
         If Pinata is configured, uses Pinata pinning API.
@@ -249,7 +249,7 @@ class ERC8004Adapter:
         if not agent_card_cid:
             agent_card = {
                 "name": agent_id,
-                "description": metadata.get("description", f"{agent_id} — Swarm Agent"),
+                "description": metadata.get("description", f"{agent_id} — Cleo Agent"),
                 "endpoint": metadata.get("endpoint", ""),
                 "capabilities": metadata.get("capabilities", []),
                 "pkpAddress": metadata.get("pkp_address", ""),

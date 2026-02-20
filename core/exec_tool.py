@@ -34,6 +34,7 @@ APPROVALS_PATH = "config/exec_approvals.json"
 
 # Default safe commands (read-only, non-destructive)
 DEFAULT_ALLOWLIST = [
+    # Read-only commands
     r"^ls\b",
     r"^cat\b",
     r"^head\b",
@@ -55,11 +56,36 @@ DEFAULT_ALLOWLIST = [
     r"^free\b",
     r"^curl\s.*--head",
     r"^curl\s.*-I\b",
+    # Code execution
     r"^python3?\s+-c\b",
     r"^node\s+-e\b",
+    # Git (read-only)
     r"^git\s+(status|log|diff|branch|tag|remote|show)\b",
     r"^pip3?\s+(list|show|freeze)\b",
     r"^npm\s+(list|ls|info|view)\b",
+    # File operations (project-scoped, safe)
+    r"^mkdir\s+-?p?\s",
+    r"^touch\b",
+    r"^cp\b",
+    r"^mv\b",
+    r"^tee\b",
+    # Curl (data fetching)
+    r"^curl\s+-s",
+    r"^curl\s.*https?://",
+    # Utilities
+    r"^sort\b",
+    r"^uniq\b",
+    r"^cut\b",
+    r"^awk\b",
+    r"^sed\b",
+    r"^tr\b",
+    r"^diff\b",
+    r"^basename\b",
+    r"^dirname\b",
+    r"^realpath\b",
+    r"^stat\b",
+    r"^file\b",
+    r"^open\b",
 ]
 
 # Explicitly denied patterns (never allowed even with approval)

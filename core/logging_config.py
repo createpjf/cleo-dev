@@ -67,7 +67,7 @@ class StructuredFormatter(logging.Formatter):
 def setup_logging(level: str = "INFO", structured: bool = False,
                   log_dir: str = ".logs"):
     """
-    Configure logging for the swarm.
+    Configure logging for Cleo.
     Args:
         level: log level (DEBUG/INFO/WARNING/ERROR)
         structured: if True, use JSON format; if False, use human-readable
@@ -98,7 +98,7 @@ def setup_logging(level: str = "INFO", structured: bool = False,
     root.addHandler(console)
 
     # File handler (structured or not)
-    log_path = os.path.join(log_dir, "swarm.log")
+    log_path = os.path.join(log_dir, "cleo.log")
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
     file_handler.setFormatter(formatter)
     file_handler.setLevel(getattr(logging, level.upper(), logging.INFO))

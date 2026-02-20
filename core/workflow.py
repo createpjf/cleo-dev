@@ -372,8 +372,8 @@ class WorkflowEngine:
 def _agent_to_role(agent_name: str) -> str:
     """Map agent name to required_role for task routing."""
     name = agent_name.lower()
-    if "plan" in name:
+    if name == "leo" or "plan" in name:
         return "planner"
-    if "review" in name or "audit" in name:
+    if name == "alic" or "review" in name or "audit" in name:
         return "review"
     return "implement"

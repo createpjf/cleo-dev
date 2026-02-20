@@ -1,4 +1,4 @@
-# ⬡ Swarm
+# ⬡ Cleo
 
 ![version](https://img.shields.io/badge/version-0.1.0-blue)
 ![python](https://img.shields.io/badge/python-3.10%2B-green)
@@ -16,10 +16,10 @@ Agents collaborate through file-backed channels, self-claim tasks, peer-review e
 
 ```bash
 # One-liner (recommended)
-curl -fsSL https://raw.githubusercontent.com/createpjf/swarm-dev/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/createpjf/cleo-dev/main/install.sh | bash
 
 # Or: clone manually
-git clone https://github.com/createpjf/swarm-dev.git && cd swarm-dev
+git clone https://github.com/createpjf/cleo-dev.git && cd cleo-dev
 bash setup.sh
 ```
 
@@ -30,9 +30,9 @@ bash setup.sh
 ## Quick Start
 
 ```bash
-swarm                  # interactive chat
-swarm run "your task"  # one-shot
-swarm gateway start    # opens dashboard at http://127.0.0.1:19789
+cleo                   # interactive chat
+cleo run "your task"   # one-shot
+cleo gateway start     # opens dashboard at http://127.0.0.1:19789
 ```
 
 ### What Happens
@@ -41,13 +41,13 @@ swarm gateway start    # opens dashboard at http://127.0.0.1:19789
 You: "Build a REST API for user management"
   │
   ▼
-Planner → decomposes into subtasks
+Leo → decomposes into subtasks
   │
   ▼
-Executor → implements each subtask (streaming output)
+Jerry → implements each subtask (streaming output)
   │
   ▼
-Advisor → reviews quality, suggests fixes
+Alic → reviews quality, suggests fixes
   │
   ▼
 Result → with cost estimate and agent attribution
@@ -60,28 +60,28 @@ The dashboard shows this in real-time: streaming output, subtask tree, agent sta
 ## CLI
 
 ```bash
-swarm --version                  # show version
-swarm --json status              # machine-readable output
+cleo --version                   # show version
+cleo --json status               # machine-readable output
 ```
 
 | Command | What it does |
 |---------|-------------|
-| `swarm` | Interactive chat mode |
-| `swarm onboard` | Setup wizard (re-run anytime) |
-| `swarm run "..."` | One-shot task |
-| `swarm status` | Task board (`--json` for JSON output) |
-| `swarm scores` | Reputation scores (`--json`) |
-| `swarm doctor` | System health check (`--json` / `--repair` / `--deep`) |
-| `swarm gateway start` | Start dashboard |
-| `swarm agents create <name>` | Create agent (`--template coder\|researcher\|debugger\|doc_writer`) |
-| `swarm workflow list` | List available workflows |
-| `swarm workflow run <name>` | Run a workflow |
-| `swarm export <task_id>` | Export task results (`--format md\|json`) |
-| `swarm cron list` | Scheduled jobs |
-| `swarm chain status` | On-chain identity status |
-| `swarm update` | Pull latest from GitHub |
-| `swarm install` | Install from GitHub |
-| `swarm uninstall` | Remove CLI & daemon |
+| `cleo` | Interactive chat mode |
+| `cleo onboard` | Setup wizard (re-run anytime) |
+| `cleo run "..."` | One-shot task |
+| `cleo status` | Task board (`--json` for JSON output) |
+| `cleo scores` | Reputation scores (`--json`) |
+| `cleo doctor` | System health check (`--json` / `--repair` / `--deep`) |
+| `cleo gateway start` | Start dashboard |
+| `cleo agents create <name>` | Create agent (`--template coder\|researcher\|debugger\|doc_writer`) |
+| `cleo workflow list` | List available workflows |
+| `cleo workflow run <name>` | Run a workflow |
+| `cleo export <task_id>` | Export task results (`--format md\|json`) |
+| `cleo cron list` | Scheduled jobs |
+| `cleo chain status` | On-chain identity status |
+| `cleo update` | Pull latest from GitHub |
+| `cleo install` | Install from GitHub |
+| `cleo uninstall` | Remove CLI & daemon |
 
 **Chat commands** (inside interactive mode): `/status` `/scores` `/config` `/configure` `/doctor` `/workflows` `/save` `/templates` `/cancel` `/clear` `/help`
 
@@ -137,11 +137,11 @@ agents:
 Built-in templates — run without setup:
 
 ```bash
-swarm workflow run code_review --input "Review auth module"
-swarm workflow run bug_fix --input "Login fails on empty password"
-swarm workflow run documentation --input "Write API docs for /users endpoint"
-swarm workflow run brainstorm --input "Ways to improve onboarding UX"
-swarm workflow run research_report --input "Compare React vs Vue in 2025"
+cleo workflow run code_review --input "Review auth module"
+cleo workflow run bug_fix --input "Login fails on empty password"
+cleo workflow run documentation --input "Write API docs for /users endpoint"
+cleo workflow run brainstorm --input "Ways to improve onboarding UX"
+cleo workflow run research_report --input "Compare React vs Vue in 2025"
 ```
 
 Create your own: drop a YAML file in `workflows/`. See existing templates for the format.
@@ -150,7 +150,7 @@ Create your own: drop a YAML file in `workflows/`. See existing templates for th
 
 ## Dashboard
 
-`swarm gateway start` opens the web dashboard at `http://127.0.0.1:19789`:
+`cleo gateway start` opens the web dashboard at `http://127.0.0.1:19789`:
 
 - **Overview** — Real-time streaming output, subtask tree, agent status chips
 - **Agents** — Cards with model, skills, reputation sparkline; click for detail popup (Overview + Edit tabs)
@@ -158,30 +158,30 @@ Create your own: drop a YAML file in `workflows/`. See existing templates for th
 - **Tools** — 18 built-in tools across 6 groups with availability status
 - **Usage** — Token counts, cost breakdown by agent and model
 - **Logs** — Per-agent logs with level filter
-- **Health** — Diagnostic checks (same as `swarm doctor`)
+- **Health** — Diagnostic checks (same as `cleo doctor`)
 
 ---
 
 ## Configuration
 
-All config lives in `config/agents.yaml` (auto-generated by `swarm onboard`):
+All config lives in `config/agents.yaml` (auto-generated by `cleo onboard`):
 
 ```yaml
 llm:
   provider: flock
 
 agents:
-  - id: planner
+  - id: leo
     role: "Strategic planner — decomposes tasks"
     model: minimax-m2.1
     skills: [_base, planning]
-  - id: executor
+  - id: jerry
     role: "Implementation agent — writes solutions"
     model: minimax-m2.1
     skills: [_base, coding]
     tools:
       profile: coding
-  - id: reviewer
+  - id: alic
     role: "Advisor — reviews quality"
     model: deepseek-v3.2
     skills: [_base, review]
@@ -193,17 +193,17 @@ Each agent can have its own provider, API key, model, fallback chain, skills, an
 
 ## FAQ / Troubleshooting
 
-**"API key not set"** — Run `swarm onboard` or edit `.env` line 7.
+**"API key not set"** — Run `cleo onboard` or edit `.env` line 7.
 
-**"Cannot reach LLM"** — Check your internet connection and Base URL. Run `swarm doctor` for diagnostics.
+**"Cannot reach LLM"** — Check your internet connection and Base URL. Run `cleo doctor` for diagnostics.
 
-**"Port 19789 in use"** — Another gateway is running. Use `swarm gateway stop` first, or set `SWARM_GATEWAY_PORT` in `.env`.
+**"Port 19789 in use"** — Another gateway is running. Use `cleo gateway stop` first, or set `SWARM_GATEWAY_PORT` in `.env`.
 
 **Tasks stuck in "claimed"** — Agent may have crashed. Tasks auto-recover after 5 min timeout, or use `/cancel` to manually cancel.
 
-**How to use Ollama (free, local)?** — Install Ollama, pull a model (`ollama pull llama3`), then run `swarm onboard`. It auto-detects Ollama.
+**How to use Ollama (free, local)?** — Install Ollama, pull a model (`ollama pull llama3`), then run `cleo onboard`. It auto-detects Ollama.
 
-**How to add a new agent?** — `swarm agents create my_agent --template coder`
+**How to add a new agent?** — `cleo agents create my_agent --template coder`
 
 ---
 
@@ -243,7 +243,7 @@ Gateway runs on port **19789** (`SWARM_GATEWAY_PORT`). Auth: `Authorization: Bea
 └────┬──────────────────┬──────────────────┬───────────┘
      │                  │                  │
  ┌───▼───┐         ┌───▼────┐        ┌───▼────┐
- │Planner│ ──────► │Executor│ ──────►│Advisor │    Agents
+ │  Leo  │ ──────► │ Jerry  │ ──────►│ Alic   │    Agents
  └───┬───┘         └───┬────┘        └───┬────┘
      │                  │                  │
      ▼                  ▼                  ▼
@@ -271,7 +271,7 @@ Gateway runs on port **19789** (`SWARM_GATEWAY_PORT`). Auth: `Authorization: Bea
 ### Project Structure
 
 ```
-swarm-dev/
+cleo-dev/
 ├── main.py                     # CLI entry point
 ├── install.sh                  # Remote one-liner installer
 ├── setup.sh                    # Local dev setup

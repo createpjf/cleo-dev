@@ -55,13 +55,13 @@ BOARD_LOCK = ".task_board.lock"
 # (e.g. planner role says "Do not implement" which contains "implement").
 
 _ROLE_TO_AGENTS = {
-    "planner":    {"planner"},
-    "plan":       {"planner"},
-    "implement":  {"executor", "coder", "developer", "builder"},
-    "execute":    {"executor", "coder", "developer", "builder"},
-    "code":       {"executor", "coder", "developer", "builder"},
-    "review":     {"reviewer", "auditor"},
-    "critique":   {"reviewer", "auditor"},
+    "planner":    {"leo", "planner"},
+    "plan":       {"leo", "planner"},
+    "implement":  {"jerry", "executor", "coder", "developer", "builder"},
+    "execute":    {"jerry", "executor", "coder", "developer", "builder"},
+    "code":       {"jerry", "executor", "coder", "developer", "builder"},
+    "review":     {"alic", "reviewer", "auditor"},
+    "critique":   {"alic", "reviewer", "auditor"},
 }
 
 # Strict role guard: these roles can ONLY be claimed by their designated agents.
@@ -71,6 +71,7 @@ _STRICT_ROLES = {"planner", "plan", "review", "critique"}
 # Agent claim restrictions: certain agents can ONLY claim specific role types.
 # This prevents reviewer from stealing executor/planner tasks when required_role=None.
 _AGENT_CLAIM_RESTRICTIONS: dict[str, set[str]] = {
+    "alic":     {"review", "critique"},
     "reviewer": {"review", "critique"},
     "auditor":  {"review", "critique"},
 }

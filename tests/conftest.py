@@ -1,6 +1,6 @@
 """
 tests/conftest.py
-Shared fixtures for swarm-dev tests.
+Shared fixtures for cleo-dev tests.
 Provides isolated temporary directories and mock adapters.
 """
 
@@ -32,22 +32,22 @@ def tmp_workdir(tmp_path, monkeypatch):
             "base_delay": 0.01,
             "max_delay": 0.1,
         },
-        "reputation": {"peer_review_agents": ["reviewer"]},
+        "reputation": {"peer_review_agents": ["alic"]},
         "agents": [
             {
-                "id": "planner",
+                "id": "leo",
                 "role": "Strategic planner.",
                 "model": "mock-model",
                 "skills": ["_base"],
             },
             {
-                "id": "executor",
+                "id": "jerry",
                 "role": "Implementation agent.",
                 "model": "mock-model",
                 "skills": ["_base"],
             },
             {
-                "id": "reviewer",
+                "id": "alic",
                 "role": "Peer reviewer.",
                 "model": "mock-model",
                 "skills": ["_base"],

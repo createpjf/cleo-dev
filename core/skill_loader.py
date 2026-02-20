@@ -181,7 +181,7 @@ class SkillLoader:
                     ...
                 ],
                 "agents": {
-                    "planner": [
+                    "leo": [
                         {"name": "debug_tips", "file": "debug_tips.md",
                          "description": "..."},
                     ],

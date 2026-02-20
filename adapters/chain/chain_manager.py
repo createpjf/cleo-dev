@@ -158,7 +158,7 @@ class ChainManager:
         logger.info("[chain] [2/3] Registering on ERC-8004...")
         metadata = {
             "pkp_address": pkp["eth_address"],
-            "description": f"{agent_id} — Swarm Agent",
+            "description": f"{agent_id} — Cleo Agent",
             "capabilities": (agent_config or {}).get("skills", []),
         }
         tx_hash = self.erc8004.register_agent(agent_id, metadata)

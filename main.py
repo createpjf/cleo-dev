@@ -2,29 +2,29 @@
 """
 main.py  —  Agent Stack CLI
 Usage:
-  swarm                       # interactive chat mode (default)
-  swarm onboard               # interactive setup wizard
-  swarm --setup               # setup wizard, then enter chat
-  swarm run "..."             # one-shot task
-  swarm status                # show task board
-  swarm scores                # show reputation scores
-  swarm doctor                # system health check
-  swarm gateway [start]       # start HTTP gateway (foreground)
-  swarm gateway status        # gateway status + health probe
-  swarm gateway stop          # stop gateway process
-  swarm gateway restart       # restart gateway
-  swarm gateway install       # install as background daemon
-  swarm gateway uninstall     # remove background daemon
-  swarm agents create <name>  # create an agent (--template researcher|coder|debugger|doc_writer)
-  swarm workflow list          # list available workflows
-  swarm workflow run <name>    # run a workflow (e.g., code_review, bug_fix, brainstorm)
-  swarm chain status          # on-chain identity status
-  swarm chain init <agent>    # initialize agent on-chain
-  swarm chain balance         # check USDC balances
-  swarm chain health          # chain health check
-  swarm install               # install from GitHub
-  swarm uninstall             # remove CLI & daemon
-  swarm update                # pull latest from GitHub
+  cleo                       # interactive chat mode (default)
+  cleo onboard               # interactive setup wizard
+  cleo --setup               # setup wizard, then enter chat
+  cleo run "..."             # one-shot task
+  cleo status                # show task board
+  cleo scores                # show reputation scores
+  cleo doctor                # system health check
+  cleo gateway [start]       # start HTTP gateway (foreground)
+  cleo gateway status        # gateway status + health probe
+  cleo gateway stop          # stop gateway process
+  cleo gateway restart       # restart gateway
+  cleo gateway install       # install as background daemon
+  cleo gateway uninstall     # remove background daemon
+  cleo agents create <name>  # create an agent (--template researcher|coder|debugger|doc_writer)
+  cleo workflow list          # list available workflows
+  cleo workflow run <name>    # run a workflow (e.g., code_review, bug_fix, brainstorm)
+  cleo chain status          # on-chain identity status
+  cleo chain init <agent>    # initialize agent on-chain
+  cleo chain balance         # check USDC balances
+  cleo chain health          # chain health check
+  cleo install               # install from GitHub
+  cleo uninstall             # remove CLI & daemon
+  cleo update                # pull latest from GitHub
 
 Chat commands:
   /configure  — re-run onboarding wizard
@@ -42,6 +42,10 @@ Chat commands:
 """
 
 from __future__ import annotations
+
+# Suppress LibreSSL warning on macOS system Python (cosmetic, not functional)
+import warnings
+warnings.filterwarnings("ignore", message=".*LibreSSL.*", category=Warning)
 
 import argparse
 import json
@@ -91,12 +95,12 @@ def interactive_main():
 
     # ── Banner ──
     console.print(r"""[bold magenta]
-   ███████╗██╗    ██╗ █████╗ ██████╗ ███╗   ███╗
-   ██╔════╝██║    ██║██╔══██╗██╔══██╗████╗ ████║
-   ███████╗██║ █╗ ██║███████║██████╔╝██╔████╔██║
-   ╚════██║██║███╗██║██╔══██║██╔══██╗██║╚██╔╝██║
-   ███████║╚███╔███╔╝██║  ██║██║  ██║██║ ╚═╝ ██║
-   ╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝[/bold magenta]
+    ██████╗██╗     ███████╗ ██████╗
+   ██╔════╝██║     ██╔════╝██╔═══██╗
+   ██║     ██║     █████╗  ██║   ██║
+   ██║     ██║     ██╔══╝  ██║   ██║
+   ╚██████╗███████╗███████╗╚██████╔╝
+    ╚═════╝╚══════╝╚══════╝ ╚═════╝[/bold magenta]
 [dim]       type a task · /help · /config · exit[/dim]
 """)
 
@@ -531,7 +535,7 @@ def interactive_main():
             cmd_update(console=console)
             continue
 
-        if cmd in ("setup", "configure") or _lower in ("configure", "swarm configure"):
+        if cmd in ("setup", "configure") or _lower in ("configure", "cleo configure"):
             from core.config_manager import snapshot_all
             snapshot_all(reason="pre-configure")
             cmd_init()
@@ -624,7 +628,7 @@ def interactive_main():
                 os.remove(fp)
 
             orch = Orchestrator()
-            task_id = orch.submit(task_text, required_role="planner")
+            task_id = orch.submit(task_text, required_role="leo")
 
             # ── Live status display (Claude Code style) ──
             from core.live_status import LiveStatus
@@ -676,6 +680,9 @@ def interactive_main():
                 console.print(f"  [dim]{_t('error.suggest_doctor')}[/dim]")
 
             if result_text:
+                # Clean LLM artifacts before rendering
+                from core.live_status import strip_think_tags
+                result_text = strip_think_tags(result_text)
                 console.print()
                 try:
                     console.print(Markdown(result_text))
@@ -1012,7 +1019,7 @@ def cmd_workflow_run(name: str, task_input: str = ""):
 
     # Load agents config
     if not os.path.exists("config/agents.yaml"):
-        print("  No config found. Run `swarm onboard` first.")
+        print("  No config found. Run `cleo onboard` first.")
         return
 
     import yaml
@@ -1567,19 +1574,19 @@ def cmd_channels(action: str = "list", channel: str = None,
 
     elif action == "enable":
         if not channel:
-            print("Error: specify a channel name. e.g. swarm channels enable slack")
+            print("Error: specify a channel name. e.g. cleo channels enable slack")
             return
         _update_channel_config(config_path, channel, enabled=True)
 
     elif action == "disable":
         if not channel:
-            print("Error: specify a channel name. e.g. swarm channels disable slack")
+            print("Error: specify a channel name. e.g. cleo channels disable slack")
             return
         _update_channel_config(config_path, channel, enabled=False)
 
     elif action == "test":
         if not channel:
-            print("Error: specify a channel name. e.g. swarm channels test slack")
+            print("Error: specify a channel name. e.g. cleo channels test slack")
             return
         print(f"Testing {channel} connection...")
         # Check if token is set
@@ -1606,7 +1613,7 @@ def cmd_channels(action: str = "list", channel: str = None,
                 print(f"All required tokens for {channel} are set.")
                 if not ch_cfg.get("enabled"):
                     print(f"Note: {channel} is disabled. "
-                          f"Run 'swarm channels enable {channel}' to activate.")
+                          f"Run 'cleo channels enable {channel}' to activate.")
         except Exception as e:
             print(f"Error: {e}")
 
@@ -1644,7 +1651,7 @@ def _update_channel_config(config_path: str, channel: str, enabled: bool):
     status = "enabled" if enabled else "disabled"
     print(f"Channel '{channel}' {status}.")
     if enabled:
-        print("Restart gateway to apply: swarm gateway restart")
+        print("Restart gateway to apply: cleo gateway restart")
 
 
 AGENT_TEMPLATES = {
@@ -1735,7 +1742,7 @@ AGENT_TEMPLATES = {
 def cmd_agents_add(name: str, template: str | None = None):
     """Add a new agent to the team interactively."""
     if not os.path.exists("config/agents.yaml"):
-        print("No config found. Run `swarm onboard` first.")
+        print("No config found. Run `cleo onboard` first.")
         return
 
     try:
@@ -1898,7 +1905,7 @@ def cmd_cron(action: str, name: str = "", act: str = "", payload: str = "",
 
     elif action == "add":
         if not all([name, act, payload, schedule_type, schedule]):
-            print("Usage: swarm cron add --name NAME --action task|exec|webhook "
+            print("Usage: cleo cron add --name NAME --action task|exec|webhook "
                   "--payload PAYLOAD --type once|interval|cron --schedule SCHEDULE")
             return
         job = add_job(name, act, payload, schedule_type, schedule)
@@ -1907,7 +1914,7 @@ def cmd_cron(action: str, name: str = "", act: str = "", payload: str = "",
 
     elif action == "remove":
         if not job_id:
-            print("Usage: swarm cron remove --id JOB_ID")
+            print("Usage: cleo cron remove --id JOB_ID")
             return
         if remove_job(job_id):
             print(f"  ✓ Job {job_id} removed")
@@ -1916,7 +1923,7 @@ def cmd_cron(action: str, name: str = "", act: str = "", payload: str = "",
 
     elif action == "run":
         if not job_id:
-            print("Usage: swarm cron run --id JOB_ID")
+            print("Usage: cleo cron run --id JOB_ID")
             return
         job = get_job(job_id)
         if not job:
@@ -1927,7 +1934,7 @@ def cmd_cron(action: str, name: str = "", act: str = "", payload: str = "",
         print(f"  {'✓' if ok else '✗'} {msg}")
 
     else:
-        print("Usage: swarm cron <list|add|remove|run>")
+        print("Usage: cleo cron <list|add|remove|run>")
 
 
 def cmd_chain(action: str, agent_id: str = None, console=None):
@@ -1941,7 +1948,7 @@ def cmd_chain(action: str, agent_id: str = None, console=None):
 
     import yaml
     if not os.path.exists("config/agents.yaml"):
-        print("No config found. Run `swarm configure` first.")
+        print("No config found. Run `cleo configure` first.")
         return
 
     with open("config/agents.yaml") as f:
@@ -1990,7 +1997,7 @@ def cmd_chain(action: str, agent_id: str = None, console=None):
 
     elif action == "init":
         if not agent_id:
-            print("Usage: swarm chain init <agent_id>")
+            print("Usage: cleo chain init <agent_id>")
             return
         agent_cfg = None
         for a in config.get("agents", []):
@@ -2009,7 +2016,7 @@ def cmd_chain(action: str, agent_id: str = None, console=None):
 
     elif action == "register":
         if not agent_id:
-            print("Usage: swarm chain register <agent_id>")
+            print("Usage: cleo chain register <agent_id>")
             return
         tx_hash = mgr.register_agent(agent_id, {})
         print(f"  {agent_id}: tx={tx_hash}")
@@ -2171,7 +2178,7 @@ def cmd_memory(action: str = "status", query: str = None,
         _memory_status(console, agent)
     elif action == "search":
         if not query:
-            print("Usage: swarm memory search <query>")
+            print("Usage: cleo memory search <query>")
             return
         _memory_search(console, query, agent)
     elif action == "rebuild":
@@ -2334,7 +2341,7 @@ def _memory_cleanup(console, agent: str = None):
                 print(f"{aid}: Error - {e}")
 
 
-_DEFAULT_REPO = "https://github.com/createpjf/swarm-dev.git"
+_DEFAULT_REPO = "https://github.com/createpjf/cleo-dev.git"
 
 
 def cmd_install(repo: str = "", target: str = "", console=None):
@@ -2385,13 +2392,13 @@ def cmd_install(repo: str = "", target: str = "", console=None):
 
     # Fresh install: clone from GitHub
     if not install_dir:
-        install_dir = os.path.expanduser("~/swarm-dev")
+        install_dir = os.path.expanduser("~/cleo-dev")
 
     _print(f"  [dim]{_t('install.checking')}[/dim]")
 
     if os.path.exists(install_dir) and os.listdir(install_dir):
         _print(f"  [yellow]![/yellow] {_t('install.already', path=install_dir)}")
-        _print(f"  [dim]Use 'swarm update' to pull latest changes.[/dim]")
+        _print(f"  [dim]Use 'cleo update' to pull latest changes.[/dim]")
         return
 
     _print(f"  [dim]{_t('install.cloning')}[/dim]  {repo_url}")
@@ -2416,14 +2423,14 @@ def cmd_install(repo: str = "", target: str = "", console=None):
     if result.returncode == 0:
         _print(f"  [green]✓[/green] {_t('install.done')}")
         _print(f"  [dim]Installed to: {install_dir}[/dim]")
-        _print(f"  [bold]Quick start:[/bold]  cd {install_dir} && swarm")
+        _print(f"  [bold]Quick start:[/bold]  cd {install_dir} && cleo")
     else:
         err = getattr(result, 'stderr', '') or ''
         _print(f"  [red]✗[/red] {_t('install.failed', err=err[:200])}")
 
 
 def cmd_uninstall(console=None):
-    """Remove swarm CLI symlink and daemon service. Source code stays."""
+    """Remove cleo CLI symlink and daemon service. Source code stays."""
     import subprocess
     if console is None:
         try:
@@ -2468,8 +2475,8 @@ def cmd_uninstall(console=None):
     except Exception:
         pass
 
-    # 2. Remove /usr/local/bin/swarm symlink
-    target = "/usr/local/bin/swarm"
+    # 2. Remove /usr/local/bin/cleo symlink
+    target = "/usr/local/bin/cleo"
     if os.path.islink(target):
         try:
             os.remove(target)
@@ -2489,7 +2496,7 @@ def cmd_uninstall(console=None):
     venv_pip = os.path.join(project_root, ".venv", "bin", "pip")
     pip_cmd = venv_pip if os.path.exists(venv_pip) else "pip"
     result = subprocess.run(
-        [pip_cmd, "uninstall", "-y", "swarm-agent-stack"],
+        [pip_cmd, "uninstall", "-y", "cleo-agent-stack"],
         capture_output=True, text=True,
     )
     if result.returncode == 0:
@@ -2600,7 +2607,7 @@ def cmd_update(branch: str = "", console=None):
     if has_local_changes:
         _print(f"  [yellow]![/yellow] Stashing local changes…")
         subprocess.run(
-            ["git", "stash", "push", "-m", "swarm-update-auto-stash"],
+            ["git", "stash", "push", "-m", "cleo-update-auto-stash"],
             cwd=project_root, capture_output=True, text=True,
         )
 
@@ -2629,12 +2636,9 @@ def cmd_update(branch: str = "", console=None):
     # Reinstall dependencies
     _print(f"  [dim]{_t('update.deps')}[/dim]")
     venv_pip = os.path.join(project_root, ".venv", "bin", "pip")
-    if os.path.exists(venv_pip):
-        pip_cmd = [venv_pip]
-    else:
-        pip_cmd = [sys.executable, "-m", "pip"]
+    pip_cmd = venv_pip if os.path.exists(venv_pip) else "pip"
     subprocess.run(
-        [*pip_cmd, "install", "-e", ".[dev]", "-q"],
+        [pip_cmd, "install", "-e", ".[dev]", "-q"],
         cwd=project_root, capture_output=True, text=True,
     )
 
@@ -2696,10 +2700,10 @@ def _get_version() -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="swarm",
+    parser = argparse.ArgumentParser(prog="cleo",
                                      description="Multi-agent orchestration CLI")
     parser.add_argument("-V", "--version", action="version",
-                        version=f"swarm {_get_version()}")
+                        version=f"cleo {_get_version()}")
     parser.add_argument("--json", action="store_true", default=False,
                         help="Output in JSON format (for scripting)")
     sub    = parser.add_subparsers(dest="cmd")
@@ -2784,13 +2788,13 @@ def main():
     p_chain.add_argument("agent_id", nargs="?", default=None,
                          help="Agent ID (required for init/register)")
 
-    p_install = sub.add_parser("install", help="Install swarm from GitHub")
+    p_install = sub.add_parser("install", help="Install cleo from GitHub")
     p_install.add_argument("--repo", default="",
                            help="GitHub repo URL (default: SWARM_REPO env or built-in)")
     p_install.add_argument("--target", default="",
-                           help="Install directory (default: ~/swarm-dev)")
+                           help="Install directory (default: ~/cleo-dev)")
 
-    sub.add_parser("uninstall", help="Remove swarm CLI and daemon")
+    sub.add_parser("uninstall", help="Remove cleo CLI and daemon")
 
     p_update = sub.add_parser("update", help="Pull latest from GitHub and reinstall")
     p_update.add_argument("--branch", default="",

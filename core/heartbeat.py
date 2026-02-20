@@ -4,7 +4,7 @@ Lightweight file-based heartbeat for agent processes.
 
 Each agent writes a JSON heartbeat file every N seconds:
   .heartbeats/{agent_id}.json = {
-    "agent_id": "planner",
+    "agent_id": "leo",
     "pid": 12345,
     "status": "idle" | "working" | "review",
     "task_id": "abc123" | null,

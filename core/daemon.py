@@ -2,7 +2,7 @@
 core/daemon.py
 Background service management — LaunchAgent (macOS) / systemd (Linux).
 
-Installs Swarm gateway as a background service that auto-starts and
+Installs Cleo gateway as a background service that auto-starts and
 restarts on failure.
 """
 
@@ -13,7 +13,7 @@ import platform
 import subprocess
 import sys
 
-SERVICE_LABEL = "com.swarm.agent-stack"
+SERVICE_LABEL = "com.cleo.agent-stack"
 SWARM_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -75,7 +75,7 @@ def _plist_content(port: int, token: str) -> str:
 
 
 def _systemd_path() -> str:
-    return os.path.expanduser(f"~/.config/systemd/user/swarm.service")
+    return os.path.expanduser(f"~/.config/systemd/user/cleo.service")
 
 
 def _systemd_content(port: int, token: str) -> str:
@@ -83,7 +83,7 @@ def _systemd_content(port: int, token: str) -> str:
     swarm_path = os.path.join(SWARM_ROOT, "swarm")
 
     return f"""[Unit]
-Description=Swarm Agent Stack Gateway
+Description=Cleo Agent Stack Gateway
 After=network.target
 
 [Service]
@@ -151,7 +151,7 @@ def daemon_status() -> tuple[bool, str]:
         if not os.path.exists(svc):
             return False, "Not installed"
         result = subprocess.run(
-            ["systemctl", "--user", "is-active", "swarm"],
+            ["systemctl", "--user", "is-active", "cleo"],
             capture_output=True, text=True,
         )
         if result.stdout.strip() == "active":
@@ -207,11 +207,11 @@ def _install_linux(port: int, token: str) -> tuple[bool, str]:
 
     subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
     result = subprocess.run(
-        ["systemctl", "--user", "enable", "--now", "swarm"],
+        ["systemctl", "--user", "enable", "--now", "cleo"],
         capture_output=True, text=True,
     )
     if result.returncode == 0:
-        return True, "systemd service installed → swarm.service"
+        return True, "systemd service installed → cleo.service"
     return False, f"systemctl enable failed: {result.stderr.strip()}"
 
 
@@ -220,7 +220,7 @@ def _uninstall_linux() -> tuple[bool, str]:
     if not os.path.exists(svc):
         return True, "Not installed"
 
-    subprocess.run(["systemctl", "--user", "disable", "--now", "swarm"],
+    subprocess.run(["systemctl", "--user", "disable", "--now", "cleo"],
                     capture_output=True)
     os.remove(svc)
     subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)

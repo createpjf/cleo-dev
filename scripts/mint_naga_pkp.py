@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 scripts/mint_naga_pkp.py
-Mint a Lit Protocol PKP on Naga network for a Swarm agent.
+Mint a Lit Protocol PKP on Naga network for a Cleo agent.
 
 Usage:
     python scripts/mint_naga_pkp.py                  # mint for all agents

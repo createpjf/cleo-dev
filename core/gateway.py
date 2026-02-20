@@ -1,6 +1,6 @@
 """
 core/gateway.py
-Lightweight HTTP gateway — exposes Swarm Agent Stack as a local API.
+Lightweight HTTP gateway — exposes Cleo Agent Stack as a local API.
 
 Endpoints:
   GET  /                            Web Dashboard (no auth)
@@ -876,7 +876,7 @@ class _Handler(BaseHTTPRequestHandler):
         config_path = "config/agents.yaml"
         if not os.path.exists(config_path):
             self._json_response(400, {
-                "error": "Config not found. Run 'swarm onboard' first."})
+                "error": "Config not found. Run 'cleo onboard' first."})
             return
 
         with open(config_path) as f:
@@ -2201,7 +2201,7 @@ def _save_env_var(key: str, value: str, env_path: str = ""):
 
 def generate_token() -> str:
     """Generate a secure random token."""
-    return f"swarm-{secrets.token_urlsafe(24)}"
+    return f"cleo-{secrets.token_urlsafe(24)}"
 
 
 def start_gateway(port: int = 0, token: str = "",

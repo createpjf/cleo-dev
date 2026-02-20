@@ -364,6 +364,8 @@ async def _agent_loop(agent, bus: ContextBus, board: TaskBoard,
             # Handle critique/review requests from other agents
             elif mail.get("type") in ("critique_request", "review_request"):
                 await _handle_critique_request(agent, board, mail, sched)
+                # After critique completes subtask → check if planner closeout is ready
+                await _check_planner_closeouts(agent, bus, board, config)
 
         # --- check for CRITIQUE tasks to fix (executor picks up own revisions) ---
         critique_task = board.claim_critique(agent.cfg.agent_id)
@@ -482,7 +484,7 @@ async def _agent_loop(agent, bus: ContextBus, board: TaskBoard,
                         return  # exit agent loop gracefully
                     raise
 
-            is_planner = "planner" in agent.cfg.agent_id.lower()
+            is_planner = agent.cfg.agent_id.lower() in ("leo", "planner")
 
             # Planner: extract subtasks and enter waiting state for close-out
             if is_planner:
@@ -653,8 +655,15 @@ async def _check_planner_closeouts(agent, bus, board: TaskBoard, config: dict):
             f"5. 用中文回复用户 (respond in Chinese).\n"
         )
         try:
+            # Use planner role for synthesis (even if called from reviewer agent)
+            planner_role = None
+            for a in config.get("agents", []):
+                if a.get("id", "").lower() in ("leo", "planner"):
+                    planner_role = a.get("role", "")
+                    break
+            system_role = planner_role or agent.cfg.role
             messages = [
-                {"role": "system", "content": agent.cfg.role},
+                {"role": "system", "content": system_role},
                 {"role": "user",   "content": close_prompt},
             ]
             final_answer = await agent.llm.chat(messages, agent.cfg.model)

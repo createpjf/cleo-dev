@@ -3,7 +3,7 @@ core/doctor.py
 System health check — validates config, dependencies, LLM connectivity, gateway.
 
 Used by:
-  - `swarm doctor` CLI command
+  - `cleo doctor` CLI command
   - Post-setup health check in wizard
   - `/doctor` chat command
 """
@@ -80,7 +80,7 @@ def run_preflight() -> list[str]:
                 # Port is in use — only warn if it's not our gateway
                 try:
                     resp = httpx.get(f"http://127.0.0.1:{gw_port}/health", timeout=1.0)
-                    if resp.status_code != 200 or "swarm" not in resp.text.lower():
+                    if resp.status_code != 200 or "cleo" not in resp.text.lower():
                         issues.append(_t("preflight.port_in_use", port=gw_port))
                 except Exception:
                     issues.append(_t("preflight.port_in_use", port=gw_port))
@@ -99,7 +99,7 @@ def check_config() -> tuple[bool, str, str]:
     """Check if agents.yaml exists and is valid."""
     path = "config/agents.yaml"
     if not os.path.exists(path):
-        return False, "Config", "config/agents.yaml not found — run: swarm onboard"
+        return False, "Config", "config/agents.yaml not found — run: cleo onboard"
     try:
         with open(path) as f:
             cfg = yaml.safe_load(f) or {}
@@ -442,7 +442,7 @@ def run_doctor_quick(rich_console=None) -> list[tuple[bool, str, str]]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  REPAIR MODE — OpenClaw-inspired auto-fix (swarm doctor --repair)
+#  REPAIR MODE — OpenClaw-inspired auto-fix (cleo doctor --repair)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_doctor_repair(rich_console=None) -> list[tuple[bool, str, str]]:
@@ -467,7 +467,7 @@ def run_doctor_repair(rich_console=None) -> list[tuple[bool, str, str]]:
             repaired += 1
         else:
             with open(".env", "w") as f:
-                f.write("# Swarm Agent Stack — Environment\n# Add your API key below:\n# FLOCK_API_KEY=\n")
+                f.write("# Cleo Agent Stack — Environment\n# Add your API key below:\n# FLOCK_API_KEY=\n")
             if rich_console:
                 rich_console.print("  [green]+[/green] Created empty .env")
             repaired += 1
@@ -522,7 +522,7 @@ def run_doctor_repair(rich_console=None) -> list[tuple[bool, str, str]]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  DEEP MODE — OpenClaw-inspired deep diagnostics (swarm doctor --deep)
+#  DEEP MODE — OpenClaw-inspired deep diagnostics (cleo doctor --deep)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_doctor_deep(rich_console=None) -> list[tuple[bool, str, str]]:
@@ -536,7 +536,7 @@ def run_doctor_deep(rich_console=None) -> list[tuple[bool, str, str]]:
 
     deep_results = []
 
-    # Deep 1: Disk usage of swarm data files
+    # Deep 1: Disk usage of Cleo data files
     data_files = [".task_board.json", ".context_bus.json", "memory/usage.json",
                   "memory/reputation_cache.json"]
     total_size = 0

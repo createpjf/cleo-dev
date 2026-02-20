@@ -5,7 +5,7 @@ Usage:
     from core.i18n import t
     t("task.completed")  # returns localized string
 
-Locale detection: SWARM_LANG env var → system locale → "en"
+Locale detection: CLEO_LANG env var → SWARM_LANG → system locale → "en"
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import locale
 
 def _detect_locale() -> str:
     """Detect locale from env or system. Returns 'en' or 'zh'."""
-    lang = os.environ.get("SWARM_LANG", "")
+    lang = os.environ.get("CLEO_LANG", "") or os.environ.get("SWARM_LANG", "")
     if lang:
         return "zh" if lang.startswith("zh") else "en"
     try:
@@ -94,7 +94,7 @@ _STRINGS = {
     "budget.exceeded":    {"en": "Budget exceeded",          "zh": "预算已超出"},
 
     # ── Doctor ───────────────────────────────────────────────────────────
-    "doctor.title":       {"en": "Swarm Doctor",             "zh": "Swarm 系统诊断"},
+    "doctor.title":       {"en": "Cleo Doctor",              "zh": "Cleo 系统诊断"},
     "doctor.all_ok":      {"en": "All checks passed",        "zh": "全部检查通过"},
     "doctor.some_fail":   {"en": "{ok}/{total} checks passed", "zh": "{ok}/{total} 项检查通过"},
     "doctor.fix_prompt":  {"en": "Auto-install missing optional packages?",
@@ -139,8 +139,8 @@ _STRINGS = {
                            "zh": "已安装在 {path}"},
     "install.failed":     {"en": "Installation failed: {err}",
                            "zh": "安装失败：{err}"},
-    "uninstall.confirm":  {"en": "Remove swarm CLI and daemon? (source code stays)",
-                           "zh": "移除 swarm CLI 和守护进程？（源代码保留）"},
+    "uninstall.confirm":  {"en": "Remove cleo CLI and daemon? (source code stays)",
+                           "zh": "移除 cleo CLI 和守护进程？（源代码保留）"},
     "uninstall.done":     {"en": "Uninstalled.",             "zh": "已卸载。"},
     "uninstall.cancelled": {"en": "Cancelled.",              "zh": "已取消。"},
     "update.checking":    {"en": "Checking for updates…",    "zh": "检查更新…"},
@@ -161,8 +161,8 @@ _STRINGS = {
 
     # ── Preflight ────────────────────────────────────────────────────────
     "preflight.api_key_empty": {
-        "en": "No API key configured — edit .env or run: swarm onboard",
-        "zh": "未配置 API Key — 编辑 .env 或运行: swarm onboard",
+        "en": "No API key configured — edit .env or run: cleo onboard",
+        "zh": "未配置 API Key — 编辑 .env 或运行: cleo onboard",
     },
     "preflight.llm_unreachable": {
         "en": "Cannot reach LLM at {url} — check network or Base URL",
@@ -173,8 +173,8 @@ _STRINGS = {
         "zh": "端口 {port} 已被占用 — 修改 SWARM_GATEWAY_PORT 或停止其他进程",
     },
     "error.suggest_doctor": {
-        "en": "Run [bold]swarm doctor[/bold] for full diagnostics",
-        "zh": "运行 [bold]swarm doctor[/bold] 查看完整诊断",
+        "en": "Run [bold]cleo doctor[/bold] for full diagnostics",
+        "zh": "运行 [bold]cleo doctor[/bold] 查看完整诊断",
     },
     "error.connect_failed": {
         "en": "Cannot connect to {url} — check network or Base URL config",

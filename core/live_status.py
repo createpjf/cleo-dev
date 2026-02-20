@@ -33,7 +33,7 @@ ICON_PAUSED    = "[bold yellow]⏸[/bold yellow]"
 class TaskRow:
     """One row in the status display, representing a single task."""
     __slots__ = ("task_id", "agent_id", "status", "description",
-                 "elapsed", "error_msg", "review_score")
+                 "elapsed", "error_msg", "review_score", "partial_preview")
 
     def __init__(self, task_id: str):
         self.task_id     = task_id
@@ -43,6 +43,7 @@ class TaskRow:
         self.elapsed:      Optional[float] = None
         self.error_msg   = ""
         self.review_score: Optional[int] = None
+        self.partial_preview: str = ""
 
 
 # ── Live Status Display ──────────────────────────────────────────────────────
@@ -108,6 +109,10 @@ class LiveStatus:
                 row.status  = "working"
                 claimed_at  = t.get("claimed_at")
                 row.elapsed = (now - claimed_at) if claimed_at else None
+                # Show streaming partial result preview
+                partial = t.get("partial_result", "")
+                if partial:
+                    row.partial_preview = _clean_preview(partial, 50)
 
             elif status == "review":
                 row.status  = "review"
@@ -199,7 +204,10 @@ class LiveStatus:
             icon = _icon_for(row.status)
 
             if row.status == "working":
-                desc_text = f"[cyan]{row.description}[/cyan]"
+                if row.partial_preview:
+                    desc_text = f"[cyan]{row.partial_preview}[/cyan]"
+                else:
+                    desc_text = f"[cyan]{row.description}[/cyan]"
                 working_count += 1
             elif row.status == "review":
                 desc_text = f"[magenta]{t('status.review')}[/magenta]"
@@ -291,3 +299,35 @@ def _truncate(text: str, maxlen: int) -> str:
     if len(text) > maxlen:
         return text[:maxlen - 1] + "…"
     return text
+
+
+import re as _re
+
+_THINK_RE = _re.compile(r"<think>.*?</think>", _re.DOTALL)
+_TOOL_CODE_RE = _re.compile(r"<tool_code>.*?</tool_code>", _re.DOTALL)
+
+
+def _clean_preview(text: str, maxlen: int = 50) -> str:
+    """Clean LLM output for preview: strip think/tool tags, normalize whitespace."""
+    text = _THINK_RE.sub("", text)
+    text = _TOOL_CODE_RE.sub("", text)
+    text = text.replace("\n", " ").strip()
+    # Collapse multiple spaces
+    text = _re.sub(r"\s+", " ", text)
+    if not text:
+        return "thinking…"
+    if len(text) > maxlen:
+        return text[:maxlen - 1] + "…"
+    return text
+
+
+def strip_think_tags(text: str) -> str:
+    """Strip <think>...</think> and <tool_code>...</tool_code> blocks from final output.
+
+    Used to clean LLM output before displaying to user.
+    """
+    text = _THINK_RE.sub("", text)
+    text = _TOOL_CODE_RE.sub("", text)
+    # Clean up excessive blank lines left after stripping
+    text = _re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()

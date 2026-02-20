@@ -1,6 +1,6 @@
-# Swarm Cookbook
+# Cleo Cookbook
 
-Three practical scenarios to get productive with Swarm.
+Three practical scenarios to get productive with Cleo.
 
 ---
 
@@ -9,7 +9,7 @@ Three practical scenarios to get productive with Swarm.
 Run a structured code review with planning, implementation analysis, and quality checks.
 
 ```bash
-swarm workflow run code_review --input "Review the authentication module in core/auth.py for security vulnerabilities"
+cleo workflow run code_review --input "Review the authentication module in core/auth.py for security vulnerabilities"
 ```
 
 **What happens:**
@@ -26,7 +26,7 @@ swarm workflow run code_review --input "Review the authentication module in core
 Generate a structured research report with outline, research, synthesis, and quality check.
 
 ```bash
-swarm workflow run research_report --input "Compare serverless frameworks: AWS Lambda vs Cloudflare Workers vs Vercel Edge Functions"
+cleo workflow run research_report --input "Compare serverless frameworks: AWS Lambda vs Cloudflare Workers vs Vercel Edge Functions"
 ```
 
 **What happens:**
@@ -43,10 +43,10 @@ Create a specialized agent for your needs.
 
 ```bash
 # Create from template
-swarm agents create security-auditor --template debugger
+cleo agents create security-auditor --template debugger
 
 # Or interactive (choose role, provider, model)
-swarm agents create security-auditor
+cleo agents create security-auditor
 ```
 
 This generates:
@@ -76,5 +76,5 @@ steps:
 ```
 
 ```bash
-swarm workflow run security_audit --input "Review auth.py and session.py"
+cleo workflow run security_audit --input "Review auth.py and session.py"
 ```

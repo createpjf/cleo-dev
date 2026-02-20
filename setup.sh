@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════
-#  Swarm Agent Stack — One-click local dev setup
+#  Cleo Agent Stack — One-click local dev setup
 #  Usage:  bash setup.sh
 # ══════════════════════════════════════════════════════════════
 set -euo pipefail
@@ -24,12 +24,12 @@ info() { echo -e "  ${DIM}$1${RESET}"; }
 warn() { echo -e "  ${YELLOW}!${RESET} $1"; }
 
 echo ""
-echo "  ███████╗██╗    ██╗ █████╗ ██████╗ ███╗   ███╗"
-echo "  ██╔════╝██║    ██║██╔══██╗██╔══██╗████╗ ████║"
-echo "  ███████╗██║ █╗ ██║███████║██████╔╝██╔████╔██║"
-echo "  ╚════██║██║███╗██║██╔══██║██╔══██╗██║╚██╔╝██║"
-echo "  ███████║╚███╔███╔╝██║  ██║██║  ██║██║ ╚═╝ ██║"
-echo "  ╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝"
+echo "   ██████╗██╗     ███████╗ ██████╗ "
+echo "  ██╔════╝██║     ██╔════╝██╔═══██╗"
+echo "  ██║     ██║     █████╗  ██║   ██║"
+echo "  ██║     ██║     ██╔══╝  ██║   ██║"
+echo "  ╚██████╗███████╗███████╗╚██████╔╝"
+echo "   ╚═════╝╚══════╝╚══════╝ ╚═════╝ "
 echo ""
 
 # ── 1. Find Python 3 ──
@@ -65,7 +65,7 @@ fi
 source "$VENV_DIR/bin/activate"
 
 # ── 3. Install package (editable mode) ──
-info "Installing swarm + dependencies..."
+info "Installing cleo + dependencies..."
 pip install --upgrade pip -q 2>/dev/null
 pip install -e ".[dev]" -q 2>&1 | tail -3 || true
 ok "Dependencies installed"
@@ -84,31 +84,31 @@ fi
 # ── 5. Create directories ──
 mkdir -p config .logs memory workflows
 
-# ── 6. Install 'swarm' command globally ──
-# After `pip install -e .`, swarm is at .venv/bin/swarm
+# ── 6. Install 'cleo' command globally ──
+# After `pip install -e .`, cleo is at .venv/bin/cleo
 # Symlink to /usr/local/bin so it works from anywhere
-SWARM_BIN="$ROOT/$VENV_DIR/bin/swarm"
-TARGET="/usr/local/bin/swarm"
+CLEO_BIN="$ROOT/$VENV_DIR/bin/cleo"
+TARGET="/usr/local/bin/cleo"
 
-if [ -f "$SWARM_BIN" ]; then
-    if [ -L "$TARGET" ] && [ "$(readlink "$TARGET")" = "$SWARM_BIN" ]; then
-        ok "CLI: swarm (already linked)"
+if [ -f "$CLEO_BIN" ]; then
+    if [ -L "$TARGET" ] && [ "$(readlink "$TARGET")" = "$CLEO_BIN" ]; then
+        ok "CLI: cleo (already linked)"
     elif [ -e "$TARGET" ]; then
         warn "Cannot link: $TARGET already exists (different program)"
-        info "Use: $SWARM_BIN  or  source .venv/bin/activate && swarm"
+        info "Use: $CLEO_BIN  or  source .venv/bin/activate && cleo"
     else
-        info "Linking swarm → /usr/local/bin/  (may ask for password)"
-        if ln -sf "$SWARM_BIN" "$TARGET" 2>/dev/null; then
-            ok "CLI: swarm  (linked to /usr/local/bin/)"
-        elif sudo ln -sf "$SWARM_BIN" "$TARGET" 2>/dev/null; then
-            ok "CLI: swarm  (linked to /usr/local/bin/)"
+        info "Linking cleo → /usr/local/bin/  (may ask for password)"
+        if ln -sf "$CLEO_BIN" "$TARGET" 2>/dev/null; then
+            ok "CLI: cleo  (linked to /usr/local/bin/)"
+        elif sudo ln -sf "$CLEO_BIN" "$TARGET" 2>/dev/null; then
+            ok "CLI: cleo  (linked to /usr/local/bin/)"
         else
             warn "Could not link to /usr/local/bin/"
-            info "Use: source .venv/bin/activate && swarm"
+            info "Use: source .venv/bin/activate && cleo"
         fi
     fi
 else
-    warn "swarm binary not found — try: pip install -e ."
+    warn "cleo binary not found — try: pip install -e ."
 fi
 
 # ── 7. Health check ──
@@ -119,16 +119,16 @@ else
     fail "Some packages failed to import — check pip install output above"
 fi
 
-# ── 8. Shell completion (bash/zsh — OpenClaw pattern) ──
-COMP_SCRIPT="$ROOT/swarm-completion.sh"
+# ── 8. Shell completion (bash/zsh) ──
+COMP_SCRIPT="$ROOT/cleo-completion.sh"
 cat > "$COMP_SCRIPT" <<'COMPEOF'
-# Swarm CLI bash/zsh completion
-_swarm_completions() {
+# Cleo CLI bash/zsh completion
+_cleo_completions() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
     local cmds="onboard run status scores doctor gateway agents workflow chain export cron install uninstall update"
     case "$prev" in
-        swarm)
+        cleo)
             COMPREPLY=( $(compgen -W "$cmds" -- "$cur") ) ;;
         gateway)
             COMPREPLY=( $(compgen -W "start stop restart status install uninstall" -- "$cur") ) ;;
@@ -154,15 +154,15 @@ _swarm_completions() {
             COMPREPLY=( $(compgen -W "researcher coder debugger doc_writer" -- "$cur") ) ;;
     esac
 }
-complete -F _swarm_completions swarm
+complete -F _cleo_completions cleo
 COMPEOF
 
 INSTALLED_COMP=false
 for rcfile in "$HOME/.bashrc" "$HOME/.zshrc"; do
     if [ -f "$rcfile" ]; then
-        if ! grep -q "swarm-completion" "$rcfile" 2>/dev/null; then
+        if ! grep -q "cleo-completion" "$rcfile" 2>/dev/null; then
             echo "" >> "$rcfile"
-            echo "# Swarm CLI completion" >> "$rcfile"
+            echo "# Cleo CLI completion" >> "$rcfile"
             echo "[ -f \"$COMP_SCRIPT\" ] && source \"$COMP_SCRIPT\"" >> "$rcfile"
             INSTALLED_COMP=true
         fi
@@ -182,4 +182,4 @@ echo ""
 # ── 9. Launch onboarding wizard ──
 echo -e "  ${BOLD}Launching onboarding wizard...${RESET}"
 echo ""
-exec "$ROOT/$VENV_DIR/bin/swarm" onboard
+exec "$ROOT/$VENV_DIR/bin/cleo" onboard

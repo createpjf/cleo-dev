@@ -123,15 +123,17 @@ class Tool:
 TOOL_PROFILES = {
     "minimal": {"web_search", "web_fetch", "memory_search", "kb_search"},
     "coding": {"web_search", "web_fetch", "exec", "read_file", "write_file",
-               "edit_file", "list_dir", "process", "memory_search", "memory_save",
-               "kb_search", "kb_write", "task_create", "task_status"},
+               "edit_file", "list_dir", "process", "cron_list", "cron_add",
+               "notify", "memory_search", "memory_save",
+               "kb_search", "kb_write", "task_create", "task_status",
+               "send_mail"},
     "full": None,  # None = all tools allowed
 }
 
 # Tool groups for bulk allow/deny
 TOOL_GROUPS = {
     "group:web": ["web_search", "web_fetch"],
-    "group:automation": ["exec", "cron", "process"],
+    "group:automation": ["exec", "cron_list", "cron_add", "process"],
     "group:media": ["screenshot", "notify"],
     "group:fs": ["read_file", "write_file", "edit_file", "list_dir"],
     "group:memory": ["memory_search", "memory_save", "kb_search", "kb_write"],
@@ -345,7 +347,7 @@ def _handle_web_fetch(url: str, max_chars: int = 8000,
 
     try:
         req = urllib.request.Request(url, headers={
-            "User-Agent": "SwarmBot/1.0 (https://github.com/createpjf/swarm-dev)",
+            "User-Agent": "CleoBot/1.0 (https://github.com/createpjf/cleo-dev)",
             "Accept-Encoding": "gzip, deflate",
             "Accept": "text/html,application/xhtml+xml,text/plain,*/*",
         })
@@ -797,10 +799,19 @@ _BUILTIN_TOOLS: list[Tool] = [
           "timeout": {"type": "integer", "description": "Max seconds (default 120)", "required": False}},
          _handle_exec, group="automation"),
 
-    Tool("cron",
-         "Manage scheduled jobs. Lists existing cron jobs.",
+    Tool("cron_list",
+         "List all existing scheduled cron jobs.",
          {},
          _handle_cron_list, group="automation"),
+
+    Tool("cron_add",
+         "Create a new scheduled job (reminder, periodic task, webhook).",
+         {"name": {"type": "string", "description": "Job name/description", "required": True},
+          "action": {"type": "string", "description": "Action type: 'task' (create task), 'exec' (run command), 'webhook' (HTTP call)", "required": True},
+          "payload": {"type": "string", "description": "Action payload (task description, shell command, or webhook URL)", "required": True},
+          "schedule_type": {"type": "string", "description": "Schedule type: 'once' (one-shot), 'interval' (repeat), 'cron' (cron expression)", "required": True},
+          "schedule": {"type": "string", "description": "Schedule value: ISO datetime for 'once', seconds for 'interval', cron expression for 'cron' (e.g. '*/5 * * * *')", "required": True}},
+         _handle_cron_add, group="automation"),
 
     Tool("process",
          "List running system processes.",
@@ -966,10 +977,21 @@ def build_tools_prompt(agent_config: dict | None = None) -> str:
     lines = [
         "## Available Tools",
         "",
-        "You can invoke tools by including a JSON block in your response:",
+        "You can invoke tools by including a JSON block in your response.",
+        "Use this EXACT format (any of these formats work):",
+        "",
+        "Format 1 (preferred):",
         "```tool",
         '{"tool": "tool_name", "params": {"param1": "value1"}}',
         "```",
+        "",
+        "Format 2:",
+        "<tool_code>",
+        '{"tool": "tool_name", "params": {"param1": "value1"}}',
+        "</tool_code>",
+        "",
+        "IMPORTANT: Use ONE tool per block. The tool JSON must have a \"tool\" key and a \"params\" key.",
+        "After tool execution, you will receive the results and can continue.",
         "",
         "Available tools:",
         "",
@@ -995,13 +1017,73 @@ _TOOL_BLOCK_RE = re.compile(
     r'```tool\s*\n(\{[^`]+?\})\s*\n```',
     re.DOTALL)
 
+# Fallback: matches <tool_code>\n{...}\n</tool_code> blocks (Minimax format)
+_TOOL_CODE_RE = re.compile(
+    r'<tool_code>\s*\n?([\s\S]+?)\n?\s*</tool_code>',
+    re.DOTALL)
+
+# Fallback: matches ```json\n{"tool":...}\n``` blocks
+_JSON_BLOCK_RE = re.compile(
+    r'```(?:json)?\s*\n(\{"tool"\s*:\s*[^`]+?\})\s*\n```',
+    re.DOTALL)
+
+
+def _try_parse_arrow_syntax(raw: str) -> dict | None:
+    """Parse Minimax-style arrow syntax to JSON.
+
+    Handles formats like:
+        { tool => 'web_search', args => { --query "hello" } }
+        { tool => 'web_search', params => { query: "hello" } }
+    """
+    try:
+        # Strip outer braces and normalize
+        s = raw.strip()
+        if not s.startswith("{"):
+            return None
+
+        # Extract tool name: tool => 'name' or tool => "name"
+        tool_match = re.search(r'''tool\s*(?:=>|:)\s*['"](\w+)['"]''', s)
+        if not tool_match:
+            return None
+        tool_name = tool_match.group(1)
+
+        # Extract params/args block
+        params = {}
+        args_match = re.search(
+            r'(?:args|params)\s*(?:=>|:)\s*\{([^}]*)\}', s, re.DOTALL)
+        if args_match:
+            args_raw = args_match.group(1)
+            # Parse --key "value" patterns (CLI-style)
+            for m in re.finditer(
+                    r'--(\w+)\s+["\']([^"\']*)["\']', args_raw):
+                params[m.group(1)] = m.group(2)
+            # Parse key: "value" or key => "value" patterns
+            for m in re.finditer(
+                    r'(\w+)\s*(?:=>|:)\s*["\']([^"\']*)["\']', args_raw):
+                params[m.group(1)] = m.group(2)
+            # Parse key: number patterns
+            for m in re.finditer(
+                    r'(\w+)\s*(?:=>|:)\s*(\d+)', args_raw):
+                params[m.group(1)] = int(m.group(2))
+
+        return {"tool": tool_name, "params": params}
+    except Exception:
+        return None
+
 
 def parse_tool_calls(text: str) -> list[dict]:
     """Extract tool invocation blocks from agent output.
 
+    Supports multiple formats for LLM compatibility:
+    1. Standard: ```tool\n{"tool":"name","params":{...}}\n```
+    2. Minimax: <tool_code>\n{tool=>'name',args=>{...}}\n</tool_code>
+    3. JSON block: ```json\n{"tool":"name","params":{...}}\n```
+
     Returns list of {"tool": "name", "params": {...}}
     """
     calls = []
+
+    # 1. Standard format (```tool ... ```)
     for match in _TOOL_BLOCK_RE.finditer(text):
         try:
             data = json.loads(match.group(1))
@@ -1013,6 +1095,57 @@ def parse_tool_calls(text: str) -> list[dict]:
                 })
         except json.JSONDecodeError:
             continue
+
+    if calls:
+        return calls
+
+    # 2. <tool_code> blocks (Minimax arrow syntax)
+    for match in _TOOL_CODE_RE.finditer(text):
+        raw_content = match.group(1).strip()
+        # Try JSON first
+        try:
+            data = json.loads(raw_content)
+            if "tool" in data:
+                calls.append({
+                    "tool": data["tool"],
+                    "params": data.get("params", data.get("args", {})),
+                    "raw": match.group(0),
+                })
+                continue
+        except json.JSONDecodeError:
+            pass
+        # Try arrow syntax
+        parsed = _try_parse_arrow_syntax(raw_content)
+        if parsed:
+            calls.append({
+                "tool": parsed["tool"],
+                "params": parsed.get("params", {}),
+                "raw": match.group(0),
+            })
+
+    if calls:
+        return calls
+
+    # 3. ```json blocks with tool key
+    for match in _JSON_BLOCK_RE.finditer(text):
+        try:
+            data = json.loads(match.group(1))
+            if "tool" in data:
+                calls.append({
+                    "tool": data["tool"],
+                    "params": data.get("params", data.get("args", {})),
+                    "raw": match.group(0),
+                })
+        except json.JSONDecodeError:
+            continue
+
+    if not calls and any(kw in text for kw in
+                         ["web_search", "web_fetch", "exec", "read_file",
+                          "write_file", "memory_search"]):
+        logger.warning("Tool keywords found in LLM output but no parseable "
+                       "tool blocks detected. First 300 chars: %s",
+                       text[:300].replace("\n", "\\n"))
+
     return calls
 
 

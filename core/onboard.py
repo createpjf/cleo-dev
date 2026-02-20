@@ -60,8 +60,8 @@ def _pause(msg: str = "Press Enter to continue..."):
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 PRESETS = {
-    "planner": {
-        "label": "Planner — decompose tasks into subtasks",
+    "leo": {
+        "label": "Leo — decompose tasks into subtasks",
         "role": (
             "Strategic planner. Decompose the task into clear subtasks.\n"
             "Write one subtask per line, prefixed with TASK:.\n"
@@ -69,16 +69,16 @@ PRESETS = {
         ),
         "skills": ["planning", "_base"],
     },
-    "executor": {
-        "label": "Executor — implement and execute tasks",
+    "jerry": {
+        "label": "Jerry — implement and execute tasks",
         "role": (
             "Implementation agent. Carry out tasks assigned by the planner.\n"
             "Write clean, working code or content. Always include reasoning."
         ),
         "skills": ["coding", "_base"],
     },
-    "reviewer": {
-        "label": "Reviewer — evaluate and score outputs",
+    "alic": {
+        "label": "Alic — evaluate and score outputs",
         "role": (
             "Peer reviewer. Evaluate task outputs on correctness, clarity,\n"
             'and completeness. Return JSON: {"score": int, "comment": str}.'
@@ -94,13 +94,6 @@ PROVIDERS = {
         "url_env": "FLOCK_BASE_URL",
         "base_url": "https://api.flock.io/v1",
         "model": "qwen3-30b-a3b-instruct-2507",
-    },
-    "minimax": {
-        "label": "Minimax",
-        "env": "MINIMAX_API_KEY",
-        "url_env": "MINIMAX_BASE_URL",
-        "base_url": "https://api.minimax.io/v1",
-        "model": "MiniMax-M2.5",
     },
     "openai": {
         "label": "OpenAI",
@@ -124,12 +117,12 @@ ENV_PATH = ".env"
 # ── ASCII Art Banner ─────────────────────────────────────────────────────────
 
 BANNER = r"""[bold magenta]
-   ███████╗██╗    ██╗ █████╗ ██████╗ ███╗   ███╗
-   ██╔════╝██║    ██║██╔══██╗██╔══██╗████╗ ████║
-   ███████╗██║ █╗ ██║███████║██████╔╝██╔████╔██║
-   ╚════██║██║███╗██║██╔══██║██╔══██╗██║╚██╔╝██║
-   ███████║╚███╔███╔╝██║  ██║██║  ██║██║ ╚═╝ ██║
-   ╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝[/bold magenta]
+    ██████╗██╗     ███████╗ ██████╗
+   ██╔════╝██║     ██╔════╝██╔═══██╗
+   ██║     ██║     █████╗  ██║   ██║
+   ██║     ██║     ██╔══╝  ██║   ██║
+   ╚██████╗███████╗███████╗╚██████╔╝
+    ╚═════╝╚══════╝╚══════╝ ╚═════╝[/bold magenta]
 [dim]           Agent Stack · Configure[/dim]
 """
 
@@ -193,7 +186,7 @@ def run_quick_setup() -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  FULL WIZARD  — swarm configure / /configure
+#  FULL WIZARD  — cleo configure / /configure
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_onboard():
@@ -431,7 +424,7 @@ def _ask_tools_quick():
                 os.environ["BRAVE_API_KEY"] = key.strip()
                 console.print(f"  [{C_OK}]+[/{C_OK}] web_search enabled")
             else:
-                console.print(f"  [{C_DIM}]Skipped — can enable later with `swarm configure --section tools`[/{C_DIM}]")
+                console.print(f"  [{C_DIM}]Skipped — can enable later with `cleo configure --section tools`[/{C_DIM}]")
         else:
             console.print(f"  [{C_DIM}]Skipped — agents can still use other tools (exec, fs, etc.)[/{C_DIM}]")
     else:
@@ -1852,7 +1845,7 @@ def _section_tools(cfg: dict):
                 console.print(f"  [{C_WARN}]{result.get('error')}[/{C_WARN}]")
 
         elif tool_name == "notify":
-            result = tool.execute(title="Swarm", message="Tool test successful!")
+            result = tool.execute(title="Cleo", message="Tool test successful!")
             if result.get("ok"):
                 console.print(f"  [{C_OK}]+[/{C_OK}] Notification sent!")
             else:
@@ -1966,7 +1959,7 @@ def _ask_daemon(port: int, token: str):
         else:
             console.print(f"  [{C_WARN}]! {msg}[/{C_WARN}]")
     else:
-        console.print(f"  [{C_DIM}]Skipped — run `swarm gateway` to start manually.[/{C_DIM}]")
+        console.print(f"  [{C_DIM}]Skipped — run `cleo gateway` to start manually.[/{C_DIM}]")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1982,10 +1975,10 @@ def _show_gateway_summary(provider: str, model: str):
 
     console.print()
     console.print(Panel(
-        f"[{C_ACCENT}]Swarm Gateway — Ready[/{C_ACCENT}]\n\n"
+        f"[{C_ACCENT}]Cleo Gateway — Ready[/{C_ACCENT}]\n\n"
         f"  Provider   [{C_DIM}]{info['label']}[/{C_DIM}]\n"
         f"  Model      [{C_DIM}]{model}[/{C_DIM}]\n"
-        f"  Agents     [{C_DIM}]planner, executor, reviewer[/{C_DIM}]\n"
+        f"  Agents     [{C_DIM}]leo, jerry, alic[/{C_DIM}]\n"
         f"  Memory     [{C_DIM}]mock (in-memory)[/{C_DIM}]\n"
         f"  Gateway    [{C_DIM}]http://127.0.0.1:{gateway_port}/[/{C_DIM}]\n"
         f"{token_line}"
@@ -2019,7 +2012,7 @@ def _show_gateway_summary_full(agents_cfg: list[dict], memory: str, chain: bool,
 
     console.print()
     console.print(Panel(
-        f"[{C_ACCENT}]Swarm Gateway — Ready[/{C_ACCENT}]",
+        f"[{C_ACCENT}]Cleo Gateway — Ready[/{C_ACCENT}]",
         border_style="magenta",
         box=box.ROUNDED,
     ))
@@ -2072,16 +2065,6 @@ def _fetch_models(provider: str, api_key: str) -> tuple[list[str], str]:
             return [], f"Ollama returned {e.response.status_code} — is it running?"
         except Exception as e:
             return [], f"Ollama: {e}"
-
-    # Minimax doesn't expose /v1/models — return known models
-    if provider == "minimax":
-        return [
-            "MiniMax-M2.5",
-            "MiniMax-M2.5-highspeed",
-            "MiniMax-M2.1",
-            "MiniMax-M2.1-highspeed",
-            "MiniMax-M2",
-        ], ""
 
     # OpenAI-compatible /v1/models
     if not actual_key:
@@ -2222,8 +2205,8 @@ def _ask_memory() -> str | None:
 def _show_risk_notice():
     """OpenClaw pattern: show risk acknowledgment on first run."""
     console.print(Panel(
-        f"[{C_ACCENT}]Welcome to Swarm Agent Stack[/{C_ACCENT}]\n\n"
-        f"  Swarm is a multi-agent orchestration system.\n"
+        f"[{C_ACCENT}]Welcome to Cleo Agent Stack[/{C_ACCENT}]\n\n"
+        f"  Cleo is a multi-agent orchestration system.\n"
         f"  Agents will call LLM APIs on your behalf and\n"
         f"  may incur usage costs depending on your provider.\n\n"
         f"  [{C_DIM}]• API calls are billed by your LLM provider[/{C_DIM}]\n"
@@ -2493,7 +2476,7 @@ def _write_config_quick(provider: str, model: str, api_key: str):
         "memory": {"backend": "mock"},
         "chain": {"enabled": False},
         "reputation": {
-            "peer_review_agents": ["reviewer"],
+            "peer_review_agents": ["alic"],
             "evolution": {
                 "prompt_auto_apply": True,
                 "model_swap_require_confirm": True,

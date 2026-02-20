@@ -192,7 +192,7 @@ class TelegramAdapter(ChannelAdapter):
     async def _cmd_start(self, update, context):
         """Handle /start command."""
         await update.effective_message.reply_text(
-            "🤖 Swarm Agent ready! Send me a task and I'll process it.\n\n"
+            "🤖 Cleo Agent ready! Send me a task and I'll process it.\n\n"
             "Commands:\n"
             "/status — Check task status\n"
             "/cancel — Cancel current task"

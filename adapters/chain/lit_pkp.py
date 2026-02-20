@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class LitPKPAdapter:
     """
-    Manages Lit Protocol PKP operations for Swarm agents.
+    Manages Lit Protocol PKP operations for Cleo agents.
     Each agent can have its own PKP for signing transactions.
     """
 
