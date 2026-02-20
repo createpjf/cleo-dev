@@ -102,6 +102,13 @@ PROVIDERS = {
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o",
     },
+    "minimax": {
+        "label": "MiniMax",
+        "env": "MINIMAX_API_KEY",
+        "url_env": "MINIMAX_BASE_URL",
+        "base_url": "https://api.minimax.io/v1",
+        "model": "minimax-m2.1",
+    },
     "ollama": {
         "label": "Ollama (local)",
         "env": "",
