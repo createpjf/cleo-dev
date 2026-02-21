@@ -200,6 +200,11 @@ textarea.mono{font-family:var(--mono);font-size:12px;line-height:1.6}
 .agent-editor .field-row{display:flex;gap:12px}
 .agent-editor .field-row>.field{flex:1}
 .agent-editor .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--bg3)}
+.model-dropdown{position:absolute;top:100%;left:0;right:60px;background:var(--bg2);border:1px solid var(--bg4);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:100;max-height:200px;overflow-y:auto;margin-top:4px}
+.model-dropdown .model-option{padding:8px 12px;font-size:13px;color:var(--fg);cursor:pointer;border-bottom:1px solid var(--bg3);transition:background .1s}
+.model-dropdown .model-option:last-child{border-bottom:none}
+.model-dropdown .model-option:hover{background:var(--bg3)}
+.model-dropdown .model-option.selected{background:rgba(55,115,255,.1);color:var(--accent)}
 .btn-create-agent{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
 .btn-create-agent:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .btn-delete-agent{background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;transition:all .15s}
@@ -2797,11 +2802,11 @@ async function loadAgents() {
       // Basic settings
       mhtml += '<div class="field-row">';
       mhtml += '<div class="field"><label>Model</label>'
-        + '<div style="display:flex;gap:4px;align-items:center">'
-        + '<input class="input" id="editModel" value="' + escHtml(a.model||'') + '" style="flex:1" list="modelSuggestions">'
+        + '<div style="display:flex;gap:4px;align-items:center;position:relative">'
+        + '<input class="input" id="editModel" value="' + escHtml(a.model||'') + '" style="flex:1" autocomplete="off" onclick="toggleModelDropdown()" readonly>'
         + '<button class="btn" onclick="fetchModels()" style="padding:4px 10px;font-size:11px;white-space:nowrap" title="Fetch models from provider">Fetch</button>'
+        + '<div id="modelDropdown" class="model-dropdown" style="display:none"></div>'
         + '</div>'
-        + '<datalist id="modelSuggestions"></datalist>'
         + '<div id="modelFetchStatus" style="font-size:10px;color:var(--fg3);margin-top:2px"></div>'
         + '</div>';
       mhtml += '<div class="field"><label>Provider</label><select class="input" id="editProvider" onchange="syncProviderBaseUrl(\'editProvider\',\'editBaseUrl\')">';
@@ -2898,17 +2903,18 @@ function syncProviderBaseUrl(selectId, urlInputId) {
   urlInput.placeholder = defaultUrl || 'https://api.example.com/v1';
 }
 
+let _fetchedModels = [];
+
 async function fetchModels() {
   const provider = document.getElementById('editProvider').value;
   const baseUrl = document.getElementById('editBaseUrl').value.trim();
   const apiKey = document.getElementById('editApiKey').value.trim();
   const status = document.getElementById('modelFetchStatus');
-  const datalist = document.getElementById('modelSuggestions');
   const modelInput = document.getElementById('editModel');
 
   status.textContent = 'Fetching models…';
   status.style.color = 'var(--fg3)';
-  datalist.innerHTML = '';
+  _fetchedModels = [];
 
   let url = '/v1/models?provider=' + encodeURIComponent(provider);
   if (baseUrl) url += '&base_url=' + encodeURIComponent(baseUrl);
@@ -2917,14 +2923,11 @@ async function fetchModels() {
   try {
     const res = await api(url);
     if (res && res.models && res.models.length) {
-      for (const m of res.models) {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        datalist.appendChild(opt);
-      }
+      _fetchedModels = res.models.map(m => m.id);
       status.textContent = res.models.length + ' models found — click input to select';
       status.style.color = 'var(--green)';
-      modelInput.focus();
+      // Auto-open dropdown
+      showModelDropdown();
     } else if (res && res.error) {
       status.textContent = res.error;
       status.style.color = 'var(--red)';
@@ -2936,6 +2939,38 @@ async function fetchModels() {
     status.textContent = 'Fetch failed: ' + e.message;
     status.style.color = 'var(--red)';
   }
+}
+
+function showModelDropdown() {
+  const dd = document.getElementById('modelDropdown');
+  const current = document.getElementById('editModel').value;
+  if (!dd || !_fetchedModels.length) return;
+  dd.innerHTML = '';
+  for (const m of _fetchedModels) {
+    const cls = m === current ? 'model-option selected' : 'model-option';
+    dd.innerHTML += '<div class="' + cls + '" onclick="selectModel(\'' + escHtml(m) + '\')">' + escHtml(m) + '</div>';
+  }
+  dd.style.display = 'block';
+  // Close on outside click
+  setTimeout(() => document.addEventListener('click', _closeModelDropdown, {once: true}), 50);
+}
+
+function toggleModelDropdown() {
+  const dd = document.getElementById('modelDropdown');
+  if (!dd) return;
+  if (dd.style.display === 'block') { dd.style.display = 'none'; return; }
+  if (_fetchedModels.length) showModelDropdown();
+}
+
+function selectModel(modelId) {
+  document.getElementById('editModel').value = modelId;
+  const dd = document.getElementById('modelDropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function _closeModelDropdown(e) {
+  const dd = document.getElementById('modelDropdown');
+  if (dd && !dd.contains(e.target) && e.target.id !== 'editModel') dd.style.display = 'none';
 }
 
 async function saveAgent(id) {
