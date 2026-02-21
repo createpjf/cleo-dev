@@ -3,6 +3,7 @@ adapters/channels/session.py
 File-backed session store for channel conversations.
 
 Tracks per-user/group sessions across channel interactions.
+Stores conversation history per session in separate JSONL files.
 Uses the same FileLock pattern as ContextBus and TaskBoard.
 """
 
@@ -27,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 SESSIONS_FILE = "memory/channel_sessions.json"
 SESSIONS_LOCK = "memory/channel_sessions.lock"
+HISTORY_DIR = "memory/sessions"
+MAX_HISTORY_MESSAGES = 50   # FIFO limit per session
+CHARS_PER_TOKEN = 3         # conservative (English ~4, CJK ~1.5)
+SESSION_EXPIRE_HOURS = 24   # start fresh if idle longer than this
 
 
 @dataclass
@@ -53,6 +58,7 @@ class SessionStore:
         self.path = path
         self.lock = FileLock(SESSIONS_LOCK)
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        os.makedirs(HISTORY_DIR, exist_ok=True)
         if not os.path.exists(path):
             self._write({})
 
@@ -97,6 +103,111 @@ class SessionStore:
                 data[session_id]["last_active"] = time.time()
                 self._write(data)
 
+    # ── Conversation History ──────────────────────────────────
+
+    def add_message(self, session_id: str, role: str, content: str,
+                    user_name: str = ""):
+        """Append a message to the session's conversation history.
+
+        Args:
+            session_id: "{channel}:{chat_id}"
+            role: "user" or "assistant"
+            content: message text
+            user_name: optional display name for user messages
+        """
+        msg = {
+            "role": role,
+            "content": content,
+            "ts": time.time(),
+        }
+        if user_name:
+            msg["user"] = user_name
+
+        history_path = self._history_path(session_id)
+        try:
+            with open(history_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+        except OSError as e:
+            logger.warning("[session] Failed to write history: %s", e)
+            return
+
+        # FIFO trim: if over limit, rewrite with last N messages
+        self._trim_history(history_path)
+
+    def get_history(self, session_id: str,
+                    max_turns: int = 10) -> list[dict]:
+        """Load the most recent conversation turns for a session.
+
+        Returns list of {role, content, ts, user?} dicts, oldest first.
+        Returns empty list if session is expired (idle > SESSION_EXPIRE_HOURS).
+        """
+        history_path = self._history_path(session_id)
+        if not os.path.exists(history_path):
+            return []
+
+        messages = []
+        try:
+            with open(history_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            messages.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+        except OSError:
+            return []
+
+        if not messages:
+            return []
+
+        # Check session expiry — if idle too long, start fresh
+        last_ts = messages[-1].get("ts", 0)
+        idle_hours = (time.time() - last_ts) / 3600
+        if idle_hours > SESSION_EXPIRE_HOURS:
+            logger.info("Session %s expired (idle %.1fh), starting fresh",
+                        session_id, idle_hours)
+            return []
+
+        # Return last max_turns*2 messages (user + assistant pairs)
+        limit = max_turns * 2
+        return messages[-limit:]
+
+    def format_history_for_prompt(self, session_id: str,
+                                   max_turns: int = 10) -> str:
+        """Format conversation history as a prompt-injectable string.
+
+        Returns a markdown-formatted conversation history suitable
+        for injection into an agent's task description. Token-aware:
+        truncates individual messages to keep total reasonable.
+        """
+        messages = self.get_history(session_id, max_turns)
+        if not messages:
+            return ""
+
+        lines = [
+            "## 对话历史 (Conversation History)\n"
+            "Below is the recent conversation with this user. "
+            "Use this context to understand references like '继续', "
+            "'the previous one', 'do the same for...', etc.\n"
+        ]
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            user = msg.get("user", "")
+            # Truncate very long messages to save tokens
+            if len(content) > 800:
+                content = content[:750] + "…(truncated)"
+            if role == "user":
+                prefix = f"**[{user}]**" if user else "**[用户]**"
+            else:
+                prefix = "**[助手]**"
+            lines.append(f"{prefix} {content}\n")
+
+        return "\n".join(lines)
+
+    # ── Query Methods ─────────────────────────────────────────
+
     def get_active_sessions(self, max_age_hours: int = 24) -> list[ChannelSession]:
         """Return sessions active within the last N hours."""
         cutoff = time.time() - (max_age_hours * 3600)
@@ -114,6 +225,22 @@ class SessionStore:
         return [self._from_dict(s) for s in data.values()]
 
     # ── Internal ──
+
+    def _history_path(self, session_id: str) -> str:
+        """Get the JSONL file path for a session's history."""
+        safe_id = session_id.replace(":", "_").replace("/", "_")
+        return os.path.join(HISTORY_DIR, f"{safe_id}.jsonl")
+
+    def _trim_history(self, path: str):
+        """Trim history file to MAX_HISTORY_MESSAGES (FIFO)."""
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            if len(lines) > MAX_HISTORY_MESSAGES:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.writelines(lines[-MAX_HISTORY_MESSAGES:])
+        except OSError:
+            pass
 
     def _read(self) -> dict:
         try:

@@ -407,12 +407,23 @@ class ChannelManager:
         # Send typing indicator
         await adapter.send_typing(msg.chat_id)
 
+        # Save user message to session conversation history
+        self._sessions.add_message(
+            msg.session_id, "user", msg.text, msg.user_name)
+
+        # Load conversation history for context injection
+        session_history = self._sessions.format_history_for_prompt(
+            msg.session_id, max_turns=10)
+        if session_history:
+            logger.info("[session:%s] loaded conversation history for context",
+                        msg.session_id)
+
         # Save channel session info for tool access (e.g., send_file)
         self._save_active_session(msg)
 
-        # Submit task via Orchestrator
+        # Submit task via Orchestrator (with session history)
         task_id = await asyncio.get_event_loop().run_in_executor(
-            None, self._submit_task, msg.text)
+            None, self._submit_task, msg.text, session_history)
 
         if not task_id:
             await adapter.send_message(msg.chat_id, "❌ 任务提交失败")
@@ -427,6 +438,10 @@ class ChannelManager:
             task_id, msg, adapter)
 
         if result:
+            # Save assistant response to session conversation history
+            self._sessions.add_message(
+                msg.session_id, "assistant", result[:2000])
+
             # Chunk and send result
             chunks = self._chunk_message(
                 result, PLATFORM_LIMITS.get(msg.channel, 4096))
@@ -438,8 +453,15 @@ class ChannelManager:
             await adapter.send_message(
                 msg.chat_id, "⏰ 任务超时，请稍后重试或简化请求")
 
-    def _submit_task(self, description: str) -> Optional[str]:
-        """Submit a task via Orchestrator (runs in thread pool)."""
+    def _submit_task(self, description: str,
+                     session_history: str = "") -> Optional[str]:
+        """Submit a task via Orchestrator (runs in thread pool).
+
+        Args:
+            description: The user's message / task description.
+            session_history: Formatted conversation history to inject
+                             into the task description for context continuity.
+        """
         try:
             from core.orchestrator import Orchestrator
             from core.task_board import TaskBoard
@@ -455,18 +477,26 @@ class ChannelManager:
             except Exception:
                 pass
 
-            # Clear state for new task
+            # Soft clear: archive completed tasks, keep context alive
+            # (ContextBus TTL mechanism handles natural expiry)
             board.clear(force=True)
-            for fp in [".context_bus.json"]:
-                if os.path.exists(fp):
-                    os.remove(fp)
-            import glob
-            for fp in glob.glob(".mailboxes/*.jsonl"):
-                os.remove(fp)
+            # NOTE: We no longer destroy .context_bus.json or .mailboxes
+            # to preserve cross-round context for session continuity.
+
+            # Inject conversation history into task description
+            if session_history:
+                full_description = (
+                    f"{session_history}\n"
+                    f"---\n\n"
+                    f"## 当前消息 (Current Message)\n"
+                    f"{description}"
+                )
+            else:
+                full_description = description
 
             # Submit and launch
             orch = Orchestrator()
-            task_id = orch.submit(description)
+            task_id = orch.submit(full_description)
 
             # Run agents in background thread
             def _run():
