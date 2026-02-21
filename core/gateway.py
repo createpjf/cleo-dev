@@ -313,6 +313,9 @@ class _Handler(BaseHTTPRequestHandler):
         elif path.startswith("/v1/channels/") and path.endswith("/test"):
             channel_name = path[len("/v1/channels/"):-len("/test")]
             self._handle_test_channel(channel_name)
+        # ── File send proxy (from agent subprocess) ──
+        elif path == "/v1/send_file":
+            self._handle_send_file_proxy()
         # ── Channel reload ──
         elif path == "/v1/channels/reload":
             self._handle_reload_channels()
@@ -1858,6 +1861,41 @@ class _Handler(BaseHTTPRequestHandler):
                 "error": str(e),
                 "channel": channel_name,
             })
+
+    def _handle_send_file_proxy(self):
+        """POST /v1/send_file — proxy file send from agent subprocess to channel manager.
+
+        Agent processes cannot access _channel_manager directly (process isolation),
+        so they POST here and the gateway (which owns the ChannelManager) relays it.
+        """
+        body = self._read_json_body()
+        session_id = body.get("session_id", "")
+        file_path = body.get("file_path", "")
+        caption = body.get("caption", "")
+
+        if not session_id or not file_path:
+            self._json_response(400, {"error": "session_id and file_path required"})
+            return
+        if not os.path.isfile(file_path):
+            self._json_response(400, {"error": f"File not found: {file_path}"})
+            return
+
+        global _channel_manager
+        if not _channel_manager or not _channel_manager._loop:
+            self._json_response(503, {"error": "Channel manager not running"})
+            return
+
+        import asyncio as _asyncio
+        future = _asyncio.run_coroutine_threadsafe(
+            _channel_manager.send_file(session_id, file_path, caption),
+            _channel_manager._loop,
+        )
+        try:
+            msg_id = future.result(timeout=30)
+            self._json_response(200, {"ok": True, "message_id": msg_id or ""})
+        except Exception as e:
+            logger.error("send_file proxy failed: %s", e)
+            self._json_response(500, {"error": str(e)})
 
     def _handle_reload_channels(self):
         """POST /v1/channels/reload — hot-reload all channel adapters."""

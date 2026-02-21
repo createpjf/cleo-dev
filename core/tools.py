@@ -8,14 +8,14 @@ Architecture:
   - Agents invoke tools via structured JSON blocks in their output
   - Tool results are fed back to the agent as context
 
-Tool categories (18 tools across 7 groups):
+Tool categories (19 tools across 7 groups):
   - Web:        web_search (Brave + Perplexity), web_fetch (text + markdown)
   - Filesystem: read_file, write_file, edit_file, list_dir
   - Memory:     memory_search, memory_save, kb_search, kb_write
   - Task:       task_create, task_status
   - Automation: exec, cron, process
-  - Media:      screenshot, notify
-  - Messaging:  send_mail
+  - Media:      screenshot, notify, transcribe (Whisper STT)
+  - Messaging:  send_mail, send_file
 
 Access control:
   - Tool profiles: "minimal", "coding", "full"
@@ -124,9 +124,9 @@ TOOL_PROFILES = {
     "minimal": {"web_search", "web_fetch", "memory_search", "kb_search"},
     "coding": {"web_search", "web_fetch", "exec", "read_file", "write_file",
                "edit_file", "list_dir", "process", "cron_list", "cron_add",
-               "notify", "memory_search", "memory_save",
+               "notify", "transcribe", "memory_search", "memory_save",
                "kb_search", "kb_write", "task_create", "task_status",
-               "send_mail"},
+               "send_mail", "send_file"},
     "full": None,  # None = all tools allowed
 }
 
@@ -134,11 +134,11 @@ TOOL_PROFILES = {
 TOOL_GROUPS = {
     "group:web": ["web_search", "web_fetch"],
     "group:automation": ["exec", "cron_list", "cron_add", "process"],
-    "group:media": ["screenshot", "notify"],
+    "group:media": ["screenshot", "notify", "transcribe"],
     "group:fs": ["read_file", "write_file", "edit_file", "list_dir"],
     "group:memory": ["memory_search", "memory_save", "kb_search", "kb_write"],
     "group:task": ["task_create", "task_status"],
-    "group:messaging": ["send_mail"],
+    "group:messaging": ["send_mail", "send_file"],
 }
 
 
@@ -545,6 +545,67 @@ def _handle_notify(title: str, message: str = "", **_) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _handle_transcribe(file_path: str, language: str = "", **_) -> dict:
+    """Transcribe audio using OpenAI Whisper API.
+
+    Supports: mp3, mp4, mpeg, mpga, m4a, wav, webm, ogg, oga, flac.
+    Requires OPENAI_API_KEY environment variable.
+    """
+    import httpx
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"ok": False, "error": "OPENAI_API_KEY not set — required for Whisper transcription"}
+
+    abs_path = os.path.abspath(file_path)
+    if not os.path.isfile(abs_path):
+        return {"ok": False, "error": f"File not found: {file_path}"}
+
+    # Validate extension
+    ext = os.path.splitext(abs_path)[1].lower()
+    allowed = {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav",
+               ".webm", ".ogg", ".oga", ".flac"}
+    if ext not in allowed:
+        return {"ok": False,
+                "error": f"Unsupported audio format '{ext}'. Supported: {', '.join(sorted(allowed))}"}
+
+    # Check file size (Whisper limit: 25 MB)
+    size = os.path.getsize(abs_path)
+    if size > 25 * 1024 * 1024:
+        return {"ok": False, "error": f"File too large ({size / 1024 / 1024:.1f} MB). Whisper limit is 25 MB."}
+
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    url = f"{base_url}/audio/transcriptions"
+
+    try:
+        with open(abs_path, "rb") as f:
+            files = {"file": (os.path.basename(abs_path), f)}
+            data = {"model": "whisper-1"}
+            if language:
+                data["language"] = language
+
+            resp = httpx.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}"},
+                files=files,
+                data=data,
+                timeout=120,
+            )
+
+        if resp.status_code != 200:
+            return {"ok": False, "error": f"Whisper API error {resp.status_code}: {resp.text[:300]}"}
+
+        result = resp.json()
+        text = result.get("text", "").strip()
+        return {"ok": True, "text": text, "file": os.path.basename(abs_path),
+                "size_kb": round(size / 1024, 1)}
+
+    except httpx.TimeoutException:
+        return {"ok": False, "error": "Whisper API request timed out (120s)"}
+    except Exception as e:
+        return {"ok": False, "error": f"Transcription failed: {e}"}
+
+
 def _handle_read_file(path: str, max_lines: int = 200, **_) -> dict:
     """Read a file from the project directory."""
     # Safety: prevent reading outside project
@@ -765,6 +826,57 @@ def _handle_send_mail(to: str, content: str,
         return {"ok": False, "error": str(e)}
 
 
+def _handle_send_file(file_path: str, caption: str = "", **_) -> dict:
+    """Send a file to the user via their active channel (Telegram/Discord/etc).
+
+    Uses HTTP proxy to the gateway process (which owns the ChannelManager).
+    Agent processes run as separate OS processes and cannot access the gateway's
+    _channel_manager directly due to process isolation.
+    """
+    abs_path = os.path.abspath(file_path)
+    if not os.path.isfile(abs_path):
+        return {"ok": False, "error": f"File not found: {file_path}"}
+
+    # Read active session
+    try:
+        from adapters.channels.manager import ChannelManager
+        session = ChannelManager.get_active_session()
+    except ImportError:
+        session = None
+
+    if not session:
+        return {"ok": False,
+                "error": "No active channel session — send_file only works "
+                         "when a task originates from a channel (Telegram/Discord/etc)."}
+
+    session_id = session["session_id"]
+
+    # Proxy through gateway HTTP API
+    import urllib.request
+    import json as _json
+    try:
+        req = urllib.request.Request(
+            "http://127.0.0.1:19789/v1/send_file",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            data=_json.dumps({
+                "session_id": session_id,
+                "file_path": abs_path,
+                "caption": caption,
+            }).encode(),
+        )
+        with urllib.request.urlopen(req, timeout=35) as resp:
+            result = _json.loads(resp.read())
+            if result.get("ok"):
+                return {"ok": True, "session_id": session_id,
+                        "file_path": file_path,
+                        "message_id": result.get("message_id", "")}
+            else:
+                return {"ok": False, "error": result.get("error", "unknown")}
+    except Exception as e:
+        return {"ok": False, "error": f"Gateway send_file proxy failed: {e}"}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  REGISTRY
 # ══════════════════════════════════════════════════════════════════════════════
@@ -829,6 +941,18 @@ _BUILTIN_TOOLS: list[Tool] = [
          {"title": {"type": "string", "description": "Notification title", "required": True},
           "message": {"type": "string", "description": "Notification body", "required": False}},
          _handle_notify, group="media"),
+
+    Tool("transcribe",
+         "Transcribe an audio file to text using OpenAI Whisper API. "
+         "Supports mp3, mp4, m4a, wav, webm, ogg, flac (max 25 MB). "
+         "Requires OPENAI_API_KEY.",
+         {"file_path": {"type": "string", "description": "Path to the audio file", "required": True},
+          "language": {"type": "string",
+                       "description": "ISO 639-1 language code hint (e.g. 'zh', 'en', 'ja'). "
+                                      "Optional — Whisper auto-detects if omitted.",
+                       "required": False}},
+         _handle_transcribe, group="media",
+         requires_env=["OPENAI_API_KEY"]),
 
     # ── Filesystem tools ──
     Tool("read_file",
@@ -900,6 +1024,18 @@ _BUILTIN_TOOLS: list[Tool] = [
           "content": {"type": "string", "description": "Message content", "required": True},
           "msg_type": {"type": "string", "description": "Message type (default: message)", "required": False}},
          _handle_send_mail, group="messaging"),
+
+    Tool("send_file",
+         "Send a file to the user via their chat channel (Telegram/Discord/Feishu/Slack). "
+         "Use this after creating a file (with write_file or exec) to deliver it to the user. "
+         "Only works when the task originates from a channel message.",
+         {"file_path": {"type": "string",
+                        "description": "Absolute or relative path to the file to send",
+                        "required": True},
+          "caption": {"type": "string",
+                      "description": "Optional caption/message to include with the file",
+                      "required": False}},
+         _handle_send_file, group="messaging"),
 ]
 
 # Keyed registry for fast lookup

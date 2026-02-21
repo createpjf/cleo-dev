@@ -8,6 +8,7 @@ Inbound messages are normalized to ChannelMessage for uniform processing.
 
 from __future__ import annotations
 
+import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -83,9 +84,32 @@ class ChannelAdapter(ABC):
         """Send a message to a channel chat. Returns sent message ID."""
         ...
 
+    async def send_file(self, chat_id: str, file_path: str,
+                        caption: str = "", reply_to: str = "",
+                        **kwargs) -> str:
+        """Send a file to a channel chat. Returns sent message ID.
+
+        Default implementation: fallback to text with filename.
+        Override in subclass for native file upload (e.g., Telegram send_document).
+        """
+        filename = os.path.basename(file_path)
+        text = f"📎 {filename}"
+        if caption:
+            text += f"\n{caption}"
+        return await self.send_message(chat_id, text, reply_to=reply_to)
+
     async def send_typing(self, chat_id: str):
         """Optional: send typing indicator while processing."""
         pass
+
+    async def health_check(self) -> bool:
+        """Check if the adapter is alive and connected. Override for real checks."""
+        return self._running
+
+    async def reconnect(self):
+        """Reconnect the adapter. Override with platform-specific logic."""
+        await self.stop()
+        await self.start()
 
     def is_enabled(self) -> bool:
         """Check if this channel is enabled in config."""

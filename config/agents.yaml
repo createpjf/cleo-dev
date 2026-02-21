@@ -131,6 +131,7 @@ agents:
   skills:
   - _base
   - coding
+  - pdf
   tools:
     profile: coding
   memory:
