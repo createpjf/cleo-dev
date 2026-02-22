@@ -129,7 +129,8 @@ TOOL_PROFILES = {
                 "search_skills", "install_remote_skill"},
     "coding": {"web_search", "web_fetch", "exec", "read_file", "write_file",
                "edit_file", "list_dir", "process", "cron_list", "cron_add",
-               "notify", "transcribe", "memory_search", "memory_save",
+               "notify", "transcribe", "tts", "list_voices",
+               "memory_search", "memory_save",
                "kb_search", "kb_write", "task_create", "task_status",
                "send_mail", "check_skill_deps", "install_skill_cli",
                "search_skills", "install_remote_skill",
@@ -143,7 +144,7 @@ TOOL_PROFILES = {
 TOOL_GROUPS = {
     "group:web": ["web_search", "web_fetch"],
     "group:automation": ["exec", "cron_list", "cron_add", "process"],
-    "group:media": ["screenshot", "notify", "transcribe"],
+    "group:media": ["screenshot", "notify", "transcribe", "tts", "list_voices"],
     "group:fs": ["read_file", "write_file", "edit_file", "list_dir"],
     "group:memory": ["memory_search", "memory_save", "kb_search", "kb_write"],
     "group:task": ["task_create", "task_status"],
@@ -618,6 +619,63 @@ def _handle_transcribe(file_path: str, language: str = "", **_) -> dict:
         return {"ok": False, "error": "Whisper API request timed out (120s)"}
     except Exception as e:
         return {"ok": False, "error": f"Transcription failed: {e}"}
+
+
+def _handle_tts(text: str, voice: str = "", speed: float = 1.0,
+                provider: str = "", output_format: str = "mp3", **_) -> dict:
+    """Synthesize text to speech audio file.
+
+    Multi-provider TTS with automatic fallback:
+      - OpenAI TTS (alloy/echo/nova/shimmer voices, needs OPENAI_API_KEY)
+      - ElevenLabs (rachel/adam/sam voices, needs ELEVENLABS_API_KEY)
+      - MiniMax (Chinese-optimized, needs MINIMAX_API_KEY + GROUP_ID)
+      - Local (piper/sherpa-onnx, zero cost, needs binary installed)
+
+    Returns path to generated audio file.
+    """
+    import asyncio
+    try:
+        from adapters.voice.tts_engine import get_tts_engine
+    except ImportError:
+        return {"ok": False, "error": "TTS engine not available"}
+
+    engine = get_tts_engine()
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                result = pool.submit(
+                    lambda: asyncio.run(engine.synthesize(
+                        text, voice=voice, speed=speed,
+                        output_format=output_format, provider=provider))
+                ).result(timeout=90)
+        else:
+            result = loop.run_until_complete(engine.synthesize(
+                text, voice=voice, speed=speed,
+                output_format=output_format, provider=provider))
+    except RuntimeError:
+        result = asyncio.run(engine.synthesize(
+            text, voice=voice, speed=speed,
+            output_format=output_format, provider=provider))
+
+    return result
+
+
+def _handle_list_voices(provider: str = "", **_) -> dict:
+    """List available TTS voices across all providers."""
+    try:
+        from adapters.voice.tts_engine import get_tts_engine
+    except ImportError:
+        return {"ok": False, "error": "TTS engine not available"}
+
+    engine = get_tts_engine()
+    return {
+        "ok": True,
+        "providers": engine.list_providers(),
+        "voices": engine.list_voices(provider=provider),
+    }
 
 
 def _handle_read_file(path: str, max_lines: int = 200, **_) -> dict:
@@ -1343,6 +1401,27 @@ _BUILTIN_TOOLS: list[Tool] = [
                        "required": False}},
          _handle_transcribe, group="media",
          requires_env=["OPENAI_API_KEY"]),
+
+    Tool("tts",
+         "Text-to-speech: synthesize text into an audio file. "
+         "Multi-provider with automatic fallback (OpenAI/ElevenLabs/MiniMax/local). "
+         "Returns path to the generated audio file.",
+         {"text": {"type": "string", "description": "Text to synthesize (max ~5000 chars)", "required": True},
+          "voice": {"type": "string",
+                    "description": "Voice ID — provider-specific. "
+                    "OpenAI: alloy/echo/nova/shimmer/fable/onyx. "
+                    "ElevenLabs: rachel/adam/sam/josh/bella. "
+                    "MiniMax: presenter_male/presenter_female/female-shaonv.",
+                    "required": False},
+          "speed": {"type": "number", "description": "Speed multiplier 0.5-2.0 (default 1.0)", "required": False},
+          "provider": {"type": "string", "description": "Force provider: openai/elevenlabs/minimax/local", "required": False},
+          "output_format": {"type": "string", "description": "Output format: mp3/wav/ogg (default mp3)", "required": False}},
+         _handle_tts, group="media"),
+
+    Tool("list_voices",
+         "List available TTS voices across all configured providers.",
+         {"provider": {"type": "string", "description": "Filter by provider name (optional)", "required": False}},
+         _handle_list_voices, group="media"),
 
     # ── Filesystem tools ──
     Tool("read_file",

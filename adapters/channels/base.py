@@ -98,6 +98,16 @@ class ChannelAdapter(ABC):
             text += f"\n{caption}"
         return await self.send_message(chat_id, text, reply_to=reply_to)
 
+    async def send_audio(self, chat_id: str, file_path: str,
+                         caption: str = "", reply_to: str = "",
+                         as_voice: bool = True, **kwargs) -> str:
+        """Send audio/voice message. Returns sent message ID.
+
+        Default implementation: fallback to send_file.
+        Override in subclass for native voice messages (e.g., Telegram send_voice).
+        """
+        return await self.send_file(chat_id, file_path, caption, reply_to)
+
     async def send_typing(self, chat_id: str):
         """Optional: send typing indicator while processing."""
         pass

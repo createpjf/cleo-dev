@@ -251,6 +251,105 @@ class TelegramAdapter(ChannelAdapter):
             # Fallback to base class (sends filename as text)
             return await super().send_file(chat_id, file_path, caption, reply_to)
 
+    async def send_audio(self, chat_id: str, file_path: str,
+                         caption: str = "", reply_to: str = "",
+                         as_voice: bool = True, **kwargs) -> str:
+        """Send audio/voice message via Telegram.
+
+        Args:
+            chat_id: Telegram chat ID
+            file_path: Path to audio file (mp3, ogg, wav)
+            caption: Optional caption
+            reply_to: Message ID to reply to
+            as_voice: Send as voice message (OGG) or audio file
+        """
+        if not self._app:
+            return ""
+        if not os.path.isfile(file_path):
+            logger.error("Telegram send_audio: file not found: %s", file_path)
+            return ""
+
+        try:
+            ext = os.path.splitext(file_path)[1].lower()
+
+            if as_voice:
+                # Voice messages must be OGG/Opus — convert if needed
+                ogg_path = file_path
+                if ext not in (".ogg", ".oga", ".opus"):
+                    ogg_path = await self._convert_to_ogg(file_path)
+                    if not ogg_path:
+                        # Fallback: send as audio file
+                        return await self._send_audio_file(
+                            chat_id, file_path, caption, reply_to)
+
+                with open(ogg_path, "rb") as f:
+                    msg = await self._app.bot.send_voice(
+                        chat_id=int(chat_id),
+                        voice=f,
+                        caption=caption[:1024] if caption else None,
+                        reply_to_message_id=int(reply_to) if reply_to else None,
+                    )
+                # Clean up temp OGG if we converted
+                if ogg_path != file_path:
+                    try:
+                        os.remove(ogg_path)
+                    except OSError:
+                        pass
+            else:
+                msg = await self._send_audio_file(
+                    chat_id, file_path, caption, reply_to)
+                return msg
+
+            logger.info("Telegram sent voice to %s (msg %s)",
+                        chat_id, msg.message_id)
+            return str(msg.message_id)
+
+        except Exception as e:
+            logger.error("Telegram send_audio failed: %s", e)
+            # Fallback to document
+            return await self.send_file(chat_id, file_path, caption, reply_to)
+
+    async def _send_audio_file(self, chat_id: str, file_path: str,
+                               caption: str = "", reply_to: str = "") -> str:
+        """Send as audio file (not voice message)."""
+        try:
+            with open(file_path, "rb") as f:
+                msg = await self._app.bot.send_audio(
+                    chat_id=int(chat_id),
+                    audio=f,
+                    filename=os.path.basename(file_path),
+                    caption=caption[:1024] if caption else None,
+                    reply_to_message_id=int(reply_to) if reply_to else None,
+                )
+            return str(msg.message_id)
+        except Exception as e:
+            logger.error("Telegram send_audio_file failed: %s", e)
+            return ""
+
+    async def _convert_to_ogg(self, input_path: str) -> str | None:
+        """Convert audio to OGG/Opus for voice messages (requires ffmpeg)."""
+        import shutil
+        if not shutil.which("ffmpeg"):
+            logger.warning("ffmpeg not found — cannot convert to OGG voice")
+            return None
+
+        import tempfile
+        import asyncio
+        ogg_path = tempfile.mktemp(suffix=".ogg")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-i", input_path, "-c:a", "libopus",
+                "-b:a", "64k", "-vbr", "on", "-y", ogg_path,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=30)
+            if proc.returncode == 0 and os.path.isfile(ogg_path):
+                return ogg_path
+        except Exception as e:
+            logger.warning("OGG conversion failed: %s", e)
+        return None
+
     async def send_typing(self, chat_id: str):
         """Send typing indicator."""
         if self._app:
