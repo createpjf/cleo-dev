@@ -8,15 +8,17 @@ Architecture:
   - Agents invoke tools via structured JSON blocks in their output
   - Tool results are fed back to the agent as context
 
-Tool categories (20 tools across 8 groups):
+Tool categories (32 tools across 9 groups):
   - Web:        web_search (Brave + Perplexity), web_fetch (text + markdown)
   - Filesystem: read_file, write_file, edit_file, list_dir
   - Memory:     memory_search, memory_save, kb_search, kb_write
   - Task:       task_create, task_status
   - Automation: exec, cron, process
-  - Skill:      check_skill_deps, install_skill_cli
+  - Skill:      check_skill_deps, install_skill_cli, search_skills, install_remote_skill
+  - Browser:    browser_navigate, browser_click, browser_fill, browser_get_text,
+                browser_screenshot, browser_evaluate, browser_page_info
   - Media:      screenshot, notify
-  - Messaging:  send_mail
+  - Messaging:  send_mail, send_file
 
 Access control:
   - Tool profiles: "minimal", "coding", "full"
@@ -123,12 +125,18 @@ class Tool:
 
 TOOL_PROFILES = {
     "minimal": {"web_search", "web_fetch", "memory_search", "kb_search",
-                "check_skill_deps", "install_skill_cli"},
+                "check_skill_deps", "install_skill_cli",
+                "search_skills", "install_remote_skill"},
     "coding": {"web_search", "web_fetch", "exec", "read_file", "write_file",
                "edit_file", "list_dir", "process", "cron_list", "cron_add",
-               "notify", "memory_search", "memory_save",
+               "notify", "transcribe", "tts", "list_voices",
+               "memory_search", "memory_save",
                "kb_search", "kb_write", "task_create", "task_status",
-               "send_mail", "check_skill_deps", "install_skill_cli"},
+               "send_mail", "check_skill_deps", "install_skill_cli",
+               "search_skills", "install_remote_skill",
+               "browser_navigate", "browser_click", "browser_fill",
+               "browser_get_text", "browser_screenshot",
+               "browser_evaluate", "browser_page_info"},
     "full": None,  # None = all tools allowed
 }
 
@@ -136,12 +144,16 @@ TOOL_PROFILES = {
 TOOL_GROUPS = {
     "group:web": ["web_search", "web_fetch"],
     "group:automation": ["exec", "cron_list", "cron_add", "process"],
-    "group:media": ["screenshot", "notify"],
+    "group:media": ["screenshot", "notify", "transcribe", "tts", "list_voices"],
     "group:fs": ["read_file", "write_file", "edit_file", "list_dir"],
     "group:memory": ["memory_search", "memory_save", "kb_search", "kb_write"],
     "group:task": ["task_create", "task_status"],
-    "group:skill": ["check_skill_deps", "install_skill_cli"],
+    "group:skill": ["check_skill_deps", "install_skill_cli",
+                    "search_skills", "install_remote_skill"],
     "group:messaging": ["send_mail"],
+    "group:browser": ["browser_navigate", "browser_click", "browser_fill",
+                      "browser_get_text", "browser_screenshot",
+                      "browser_evaluate", "browser_page_info"],
 }
 
 
@@ -548,6 +560,124 @@ def _handle_notify(title: str, message: str = "", **_) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _handle_transcribe(file_path: str, language: str = "", **_) -> dict:
+    """Transcribe audio using OpenAI Whisper API.
+
+    Supports: mp3, mp4, mpeg, mpga, m4a, wav, webm, ogg, oga, flac.
+    Requires OPENAI_API_KEY environment variable.
+    """
+    import httpx
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"ok": False, "error": "OPENAI_API_KEY not set — required for Whisper transcription"}
+
+    abs_path = os.path.abspath(file_path)
+    if not os.path.isfile(abs_path):
+        return {"ok": False, "error": f"File not found: {file_path}"}
+
+    # Validate extension
+    ext = os.path.splitext(abs_path)[1].lower()
+    allowed = {".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav",
+               ".webm", ".ogg", ".oga", ".flac"}
+    if ext not in allowed:
+        return {"ok": False,
+                "error": f"Unsupported audio format '{ext}'. Supported: {', '.join(sorted(allowed))}"}
+
+    # Check file size (Whisper limit: 25 MB)
+    size = os.path.getsize(abs_path)
+    if size > 25 * 1024 * 1024:
+        return {"ok": False, "error": f"File too large ({size / 1024 / 1024:.1f} MB). Whisper limit is 25 MB."}
+
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    url = f"{base_url}/audio/transcriptions"
+
+    try:
+        with open(abs_path, "rb") as f:
+            files = {"file": (os.path.basename(abs_path), f)}
+            data = {"model": "whisper-1"}
+            if language:
+                data["language"] = language
+
+            resp = httpx.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}"},
+                files=files,
+                data=data,
+                timeout=120,
+            )
+
+        if resp.status_code != 200:
+            return {"ok": False, "error": f"Whisper API error {resp.status_code}: {resp.text[:300]}"}
+
+        result = resp.json()
+        text = result.get("text", "").strip()
+        return {"ok": True, "text": text, "file": os.path.basename(abs_path),
+                "size_kb": round(size / 1024, 1)}
+
+    except httpx.TimeoutException:
+        return {"ok": False, "error": "Whisper API request timed out (120s)"}
+    except Exception as e:
+        return {"ok": False, "error": f"Transcription failed: {e}"}
+
+
+def _handle_tts(text: str, voice: str = "", speed: float = 1.0,
+                provider: str = "", output_format: str = "mp3", **_) -> dict:
+    """Synthesize text to speech audio file.
+
+    Multi-provider TTS with automatic fallback:
+      - OpenAI TTS (alloy/echo/nova/shimmer voices, needs OPENAI_API_KEY)
+      - ElevenLabs (rachel/adam/sam voices, needs ELEVENLABS_API_KEY)
+      - MiniMax (Chinese-optimized, needs MINIMAX_API_KEY + GROUP_ID)
+      - Local (piper/sherpa-onnx, zero cost, needs binary installed)
+
+    Returns path to generated audio file.
+    """
+    import asyncio
+    try:
+        from adapters.voice.tts_engine import get_tts_engine
+    except ImportError:
+        return {"ok": False, "error": "TTS engine not available"}
+
+    engine = get_tts_engine()
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                result = pool.submit(
+                    lambda: asyncio.run(engine.synthesize(
+                        text, voice=voice, speed=speed,
+                        output_format=output_format, provider=provider))
+                ).result(timeout=90)
+        else:
+            result = loop.run_until_complete(engine.synthesize(
+                text, voice=voice, speed=speed,
+                output_format=output_format, provider=provider))
+    except RuntimeError:
+        result = asyncio.run(engine.synthesize(
+            text, voice=voice, speed=speed,
+            output_format=output_format, provider=provider))
+
+    return result
+
+
+def _handle_list_voices(provider: str = "", **_) -> dict:
+    """List available TTS voices across all providers."""
+    try:
+        from adapters.voice.tts_engine import get_tts_engine
+    except ImportError:
+        return {"ok": False, "error": "TTS engine not available"}
+
+    engine = get_tts_engine()
+    return {
+        "ok": True,
+        "providers": engine.list_providers(),
+        "voices": engine.list_voices(provider=provider),
+    }
+
+
 def _handle_read_file(path: str, max_lines: int = 200, **_) -> dict:
     """Read a file from the project directory."""
     # Safety: prevent reading outside project
@@ -768,6 +898,39 @@ def _handle_send_mail(to: str, content: str,
         return {"ok": False, "error": str(e)}
 
 
+def _handle_send_file(**kwargs) -> dict:
+    """Send a file to the user via their chat channel.
+
+    Requires the task to have originated from a channel message.
+    The channel adapter will pick up the file and deliver it.
+    """
+    file_path = kwargs.get("file_path", "")
+    caption = kwargs.get("caption", "")
+
+    if not file_path:
+        return {"ok": False, "error": "file_path parameter required"}
+
+    if not os.path.exists(file_path):
+        return {"ok": False, "error": f"File not found: {file_path}"}
+
+    # Store file delivery request for the channel adapter to pick up
+    try:
+        delivery_dir = ".file_delivery"
+        os.makedirs(delivery_dir, exist_ok=True)
+        delivery = {
+            "file_path": os.path.abspath(file_path),
+            "caption": caption,
+            "ts": time.time(),
+        }
+        delivery_file = os.path.join(delivery_dir, f"{int(time.time()*1000)}.json")
+        with open(delivery_file, "w") as f:
+            json.dump(delivery, f)
+        return {"ok": True, "message": f"File queued for delivery: {file_path}",
+                "delivery_id": os.path.basename(delivery_file)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ── Skill CLI install/check handlers ──
 
 def _handle_check_skill_deps(**kwargs) -> dict:
@@ -892,6 +1055,176 @@ def _auto_approve_skill_bins(bins: list[str]):
         logger.warning("Could not auto-approve bins: %s", e)
 
 
+# ── Remote skill registry handlers ──
+
+def _handle_search_skills(**kwargs) -> dict:
+    """Search the remote skill registry for new skills to install."""
+    try:
+        from core.skill_registry import get_registry
+    except ImportError:
+        return {"ok": False, "error": "skill_registry module not available"}
+
+    query = kwargs.get("query", "")
+    if not query:
+        return {"ok": False, "error": "query parameter required"}
+
+    registry = get_registry()
+    try:
+        results = registry.search(query, limit=kwargs.get("limit", 10))
+    except Exception as e:
+        return {"ok": False, "error": f"Search failed: {e}"}
+
+    if not results:
+        return {
+            "ok": True,
+            "count": 0,
+            "message": f"No skills found matching '{query}'",
+            "results": [],
+        }
+
+    # Format results for agent consumption
+    formatted = []
+    for r in results:
+        entry = {
+            "slug": r.get("slug", ""),
+            "name": r.get("name", ""),
+            "description": r.get("description", ""),
+            "version": r.get("version", ""),
+            "tags": r.get("tags", []),
+            "installed": r.get("installed", False),
+        }
+        if r.get("installed"):
+            entry["installed_version"] = r.get("installed_version", "")
+        if r.get("requires", {}).get("bins"):
+            entry["requires_cli"] = r["requires"]["bins"]
+        formatted.append(entry)
+
+    return {
+        "ok": True,
+        "count": len(formatted),
+        "query": query,
+        "results": formatted,
+    }
+
+
+def _handle_install_remote_skill(**kwargs) -> dict:
+    """Install a skill from the remote registry."""
+    try:
+        from core.skill_registry import get_registry
+    except ImportError:
+        return {"ok": False, "error": "skill_registry module not available"}
+
+    slug = kwargs.get("slug", "")
+    if not slug:
+        return {"ok": False, "error": "slug parameter required"}
+
+    agent_id = kwargs.get("agent", "")
+    add_to_all = kwargs.get("add_to_all", True)
+
+    registry = get_registry()
+
+    # Step 1: Install the skill
+    result = registry.install(slug)
+    if not result.get("ok"):
+        return result
+
+    # Step 2: Add to agent config
+    if add_to_all:
+        cfg_result = registry.add_to_all_agents(slug)
+    elif agent_id:
+        cfg_result = registry.add_to_agent(slug, agent_id)
+    else:
+        cfg_result = {"ok": True, "message": "Skill installed but not added to any agent config"}
+
+    result["config"] = cfg_result.get("message", "")
+    result["message"] = (
+        f"{result.get('message', '')}. "
+        f"{cfg_result.get('message', '')}. "
+        "Skill will be active on the next task (hot-reload)."
+    )
+
+    return result
+
+
+# ── Browser automation handlers ──
+
+def _handle_browser_navigate(**kwargs) -> dict:
+    """Navigate the browser to a URL."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_navigate
+        return handle_browser_navigate(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed. Run: pip install playwright && playwright install chromium"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_click(**kwargs) -> dict:
+    """Click an element in the browser."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_click
+        return handle_browser_click(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_fill(**kwargs) -> dict:
+    """Fill a form field in the browser."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_fill
+        return handle_browser_fill(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_get_text(**kwargs) -> dict:
+    """Extract text content from the page."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_get_text
+        return handle_browser_get_text(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_screenshot(**kwargs) -> dict:
+    """Take a screenshot of the page."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_screenshot
+        return handle_browser_screenshot(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_evaluate(**kwargs) -> dict:
+    """Run JavaScript in the page."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_evaluate
+        return handle_browser_evaluate(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_page_info(**kwargs) -> dict:
+    """Get current page info (URL, title)."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_page_info
+        return handle_browser_page_info(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  REGISTRY
 # ══════════════════════════════════════════════════════════════════════════════
@@ -963,6 +1296,88 @@ _BUILTIN_TOOLS: list[Tool] = [
                      "required": True}},
          _handle_install_skill_cli, group="skill"),
 
+    Tool("search_skills",
+         "Search the remote skill registry for new capabilities. Use this when you "
+         "need a skill that isn't currently installed. Returns matching skills with "
+         "descriptions, versions, and install status.",
+         {"query": {"type": "string",
+                     "description": "Search query (skill name, description, or tag, e.g. 'pdf', 'browser', 'email')",
+                     "required": True},
+          "limit": {"type": "integer",
+                     "description": "Max results to return (default 10)",
+                     "required": False}},
+         _handle_search_skills, group="skill"),
+
+    Tool("install_remote_skill",
+         "Download and install a skill from the remote registry. After installation, "
+         "the skill is immediately available via hot-reload (no restart needed). "
+         "CLI dependencies are auto-installed if possible. Use search_skills first.",
+         {"slug": {"type": "string",
+                    "description": "Skill slug from search_skills results (e.g. 'pdf-rotate', 'browser-control')",
+                    "required": True},
+          "agent": {"type": "string",
+                     "description": "Agent ID to add skill to (default: add to all agents)",
+                     "required": False},
+          "add_to_all": {"type": "boolean",
+                          "description": "Add skill to all agents (default: true)",
+                          "required": False}},
+         _handle_install_remote_skill, group="skill"),
+
+    # ── Browser automation tools ──
+    Tool("browser_navigate",
+         "Open a URL in a headless browser. Use for web scraping, form filling, "
+         "or interacting with web pages that require JavaScript rendering.",
+         {"url": {"type": "string",
+                   "description": "URL to navigate to (must include https://)",
+                   "required": True}},
+         _handle_browser_navigate, group="browser"),
+
+    Tool("browser_click",
+         "Click an element on the page by CSS selector.",
+         {"selector": {"type": "string",
+                        "description": "CSS selector (e.g. 'button.submit', '#login-btn')",
+                        "required": True}},
+         _handle_browser_click, group="browser"),
+
+    Tool("browser_fill",
+         "Fill a form input field with text.",
+         {"selector": {"type": "string",
+                        "description": "CSS selector for the input field",
+                        "required": True},
+          "value": {"type": "string",
+                     "description": "Text value to enter",
+                     "required": True}},
+         _handle_browser_fill, group="browser"),
+
+    Tool("browser_get_text",
+         "Extract text content from the page or a specific element.",
+         {"selector": {"type": "string",
+                        "description": "CSS selector (default: 'body' for full page)",
+                        "required": False}},
+         _handle_browser_get_text, group="browser"),
+
+    Tool("browser_screenshot",
+         "Take a screenshot of the current page. Returns file path.",
+         {"full_page": {"type": "boolean",
+                         "description": "Capture full scrollable page (default: false)",
+                         "required": False},
+          "selector": {"type": "string",
+                        "description": "Screenshot only this element (CSS selector)",
+                        "required": False}},
+         _handle_browser_screenshot, group="browser"),
+
+    Tool("browser_evaluate",
+         "Execute JavaScript code in the page context. Returns the result.",
+         {"expression": {"type": "string",
+                          "description": "JavaScript expression to evaluate",
+                          "required": True}},
+         _handle_browser_evaluate, group="browser"),
+
+    Tool("browser_page_info",
+         "Get current browser page info (URL, title).",
+         {},
+         _handle_browser_page_info, group="browser"),
+
     # ── Media tools ──
     Tool("screenshot",
          "Capture a screenshot of the current desktop (macOS only).",
@@ -974,6 +1389,39 @@ _BUILTIN_TOOLS: list[Tool] = [
          {"title": {"type": "string", "description": "Notification title", "required": True},
           "message": {"type": "string", "description": "Notification body", "required": False}},
          _handle_notify, group="media"),
+
+    Tool("transcribe",
+         "Transcribe an audio file to text using OpenAI Whisper API. "
+         "Supports mp3, mp4, m4a, wav, webm, ogg, flac (max 25 MB). "
+         "Requires OPENAI_API_KEY.",
+         {"file_path": {"type": "string", "description": "Path to the audio file", "required": True},
+          "language": {"type": "string",
+                       "description": "ISO 639-1 language code hint (e.g. 'zh', 'en', 'ja'). "
+                                      "Optional — Whisper auto-detects if omitted.",
+                       "required": False}},
+         _handle_transcribe, group="media",
+         requires_env=["OPENAI_API_KEY"]),
+
+    Tool("tts",
+         "Text-to-speech: synthesize text into an audio file. "
+         "Multi-provider with automatic fallback (OpenAI/ElevenLabs/MiniMax/local). "
+         "Returns path to the generated audio file.",
+         {"text": {"type": "string", "description": "Text to synthesize (max ~5000 chars)", "required": True},
+          "voice": {"type": "string",
+                    "description": "Voice ID — provider-specific. "
+                    "OpenAI: alloy/echo/nova/shimmer/fable/onyx. "
+                    "ElevenLabs: rachel/adam/sam/josh/bella. "
+                    "MiniMax: presenter_male/presenter_female/female-shaonv.",
+                    "required": False},
+          "speed": {"type": "number", "description": "Speed multiplier 0.5-2.0 (default 1.0)", "required": False},
+          "provider": {"type": "string", "description": "Force provider: openai/elevenlabs/minimax/local", "required": False},
+          "output_format": {"type": "string", "description": "Output format: mp3/wav/ogg (default mp3)", "required": False}},
+         _handle_tts, group="media"),
+
+    Tool("list_voices",
+         "List available TTS voices across all configured providers.",
+         {"provider": {"type": "string", "description": "Filter by provider name (optional)", "required": False}},
+         _handle_list_voices, group="media"),
 
     # ── Filesystem tools ──
     Tool("read_file",
@@ -1045,6 +1493,18 @@ _BUILTIN_TOOLS: list[Tool] = [
           "content": {"type": "string", "description": "Message content", "required": True},
           "msg_type": {"type": "string", "description": "Message type (default: message)", "required": False}},
          _handle_send_mail, group="messaging"),
+
+    Tool("send_file",
+         "Send a file to the user via their chat channel (Telegram/Discord/Feishu/Slack). "
+         "Use this after creating a file (with write_file or exec) to deliver it to the user. "
+         "Only works when the task originates from a channel message.",
+         {"file_path": {"type": "string",
+                        "description": "Absolute or relative path to the file to send",
+                        "required": True},
+          "caption": {"type": "string",
+                      "description": "Optional caption/message to include with the file",
+                      "required": False}},
+         _handle_send_file, group="messaging"),
 ]
 
 # Keyed registry for fast lookup

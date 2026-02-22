@@ -179,6 +179,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._handle_tools()
         elif path == "/v1/models":
             self._handle_models()
+        elif path == "/v1/providers":
+            self._handle_providers()
         elif path.startswith("/v1/task/"):
             task_id = path[len("/v1/task/"):]
             self._handle_get_task(task_id)
@@ -330,6 +332,9 @@ class _Handler(BaseHTTPRequestHandler):
         elif path.startswith("/v1/channels/") and path.endswith("/test"):
             channel_name = path[len("/v1/channels/"):-len("/test")]
             self._handle_test_channel(channel_name)
+        # ── File send proxy (from agent subprocess) ──
+        elif path == "/v1/send_file":
+            self._handle_send_file_proxy()
         # ── Channel reload ──
         elif path == "/v1/channels/reload":
             self._handle_reload_channels()
@@ -410,11 +415,22 @@ class _Handler(BaseHTTPRequestHandler):
             agents_count = len(cfg.get("agents", []))
 
         uptime = time.time() - _start_time
+        ws_info = {}
+        try:
+            from core.ws_gateway import _instance as _ws_instance
+            if _ws_instance and _ws_instance.is_running:
+                ws_info = {
+                    "ws_port": _ws_instance.port,
+                    "ws_clients": _ws_instance.client_count,
+                }
+        except ImportError:
+            pass
         self._json_response(200, {
             "status": "ok",
             "agents": agents_count,
             "uptime_seconds": round(uptime, 1),
             "port": _config.get("port", DEFAULT_PORT),
+            **ws_info,
         })
 
     def _handle_status(self):
@@ -956,6 +972,25 @@ class _Handler(BaseHTTPRequestHandler):
             self._json_response(200, {
                 "models": [], "provider": provider,
                 "error": "No API key set and no known model list for this provider"})
+
+    def _handle_providers(self):
+        """Return provider router status for dashboard."""
+        try:
+            from core.provider_router import get_router
+            router = get_router()
+            if router:
+                self._json_response(200, router.get_status())
+            else:
+                self._json_response(200, {
+                    "enabled": False,
+                    "message": "Provider router not enabled. "
+                    "Add provider_router.enabled: true to agents.yaml",
+                })
+        except ImportError:
+            self._json_response(200, {
+                "enabled": False,
+                "error": "provider_router module not available",
+            })
 
     # ══════════════════════════════════════════════════════════════════════════
     #  NEW HANDLERS — Agent Management
@@ -2166,6 +2201,41 @@ class _Handler(BaseHTTPRequestHandler):
                 "channel": channel_name,
             })
 
+    def _handle_send_file_proxy(self):
+        """POST /v1/send_file — proxy file send from agent subprocess to channel manager.
+
+        Agent processes cannot access _channel_manager directly (process isolation),
+        so they POST here and the gateway (which owns the ChannelManager) relays it.
+        """
+        body = self._read_json_body()
+        session_id = body.get("session_id", "")
+        file_path = body.get("file_path", "")
+        caption = body.get("caption", "")
+
+        if not session_id or not file_path:
+            self._json_response(400, {"error": "session_id and file_path required"})
+            return
+        if not os.path.isfile(file_path):
+            self._json_response(400, {"error": f"File not found: {file_path}"})
+            return
+
+        global _channel_manager
+        if not _channel_manager or not _channel_manager._loop:
+            self._json_response(503, {"error": "Channel manager not running"})
+            return
+
+        import asyncio as _asyncio
+        future = _asyncio.run_coroutine_threadsafe(
+            _channel_manager.send_file(session_id, file_path, caption),
+            _channel_manager._loop,
+        )
+        try:
+            msg_id = future.result(timeout=30)
+            self._json_response(200, {"ok": True, "message_id": msg_id or ""})
+        except Exception as e:
+            logger.error("send_file proxy failed: %s", e)
+            self._json_response(500, {"error": str(e)})
+
     def _handle_reload_channels(self):
         """POST /v1/channels/reload — hot-reload all channel adapters."""
         global _channel_manager
@@ -2594,6 +2664,37 @@ def start_gateway(port: int = 0, token: str = "",
         logger.info("Channel manager started (hot-reload ready)")
     except Exception as e:
         logger.warning("Channel manager failed to start: %s", e)
+
+    # ── Provider Router (cross-provider LLM failover) ──
+    try:
+        from core.provider_router import build_provider_router
+        router = build_provider_router(full_config)
+        if router:
+            logger.info("Provider router enabled: %s (strategy=%s)",
+                        ", ".join(router.provider_names), router.strategy)
+    except Exception as e:
+        logger.warning("Provider router failed to init: %s", e)
+
+    # ── WebSocket gateway (async, runs in background thread) ──
+    try:
+        from core.ws_gateway import start_ws_gateway, _HAS_WEBSOCKETS
+        if _HAS_WEBSOCKETS:
+            import asyncio
+
+            def _run_ws():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                ws_port = port + 1
+                loop.run_until_complete(start_ws_gateway(port=ws_port, token=token))
+                loop.run_forever()
+
+            ws_thread = Thread(target=_run_ws, daemon=True, name="ws-gateway")
+            ws_thread.start()
+            logger.info("WebSocket gateway started on ws://0.0.0.0:%d", port + 1)
+        else:
+            logger.info("WebSocket gateway disabled (websockets not installed)")
+    except Exception as e:
+        logger.warning("WebSocket gateway failed to start: %s", e)
 
     # ── Serve ──
 

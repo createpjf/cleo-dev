@@ -810,9 +810,26 @@ async def _check_planner_closeouts(agent, bus, board: TaskBoard, config: dict):
 def _build_llm_for_agent(agent_def: dict, config: dict):
     """
     Build a Resilient LLM adapter for a specific agent.
+
+    Two modes:
+      1. Provider Router (cross-provider failover) — if provider_router.enabled
+         Routes requests across multiple providers (MiniMax → OpenAI → Ollama)
+      2. Single Provider + ResilientLLM (default) — model failover within one provider
+
     Per-agent llm: block overrides global llm: config.
-    Wraps base adapter with retry, circuit breaker, and model failover.
     """
+    # ── Mode 1: Provider Router (cross-provider failover) ──
+    try:
+        from core.provider_router import get_router
+        router = get_router()
+        if router and router.provider_names:
+            logger.info("[orchestrator] Using provider router for agent %s",
+                        agent_def.get("id", "?"))
+            return router
+    except ImportError:
+        pass
+
+    # ── Mode 2: Single provider + ResilientLLM (default) ──
     agent_llm    = agent_def.get("llm", {})
     provider     = agent_llm.get("provider") or config.get("llm", {}).get("provider", "flock")
     api_key_env  = agent_llm.get("api_key_env", "")
@@ -858,9 +875,15 @@ def _build_llm_for_agent(agent_def: dict, config: dict):
 
 def _build_memory(config: dict, agent_id: str = ""):
     """
-    Build memory adapter with per-agent isolation.
+    Build memory adapter with per-agent isolation and pluggable embeddings.
     Each agent gets its own persist directory: memory/agents/{agent_id}/chroma/
     Falls back to shared memory/chroma/ if agent_id is empty.
+
+    Embedding provider is configured via config.memory.embedding:
+        embedding:
+          provider: openai | flock | local | chromadb_default
+          model: text-embedding-3-small
+          api_key_env: OPENAI_API_KEY
     """
     backend = config.get("memory", {}).get("backend", "chroma")
     if agent_id:
@@ -868,12 +891,24 @@ def _build_memory(config: dict, agent_id: str = ""):
     else:
         persist_dir = "memory/chroma"
 
+    # Build embedding function from config (if configured)
+    embedding_fn = None
+    try:
+        from adapters.memory.embedding import get_embedding_provider
+        provider = get_embedding_provider(config)
+        embedding_fn = provider.as_chromadb_function()
+        if embedding_fn is not None:
+            logger.info("[memory] Using embedding provider: %s (dim=%d)",
+                        provider.name, provider.dimensions)
+    except Exception as e:
+        logger.debug("[memory] Embedding provider init skipped: %s", e)
+
     if backend == "hybrid":
         from adapters.memory.hybrid import HybridAdapter
-        return HybridAdapter(persist_dir=persist_dir)
+        return HybridAdapter(persist_dir=persist_dir, embedding_fn=embedding_fn)
     elif backend == "chroma":
         from adapters.memory.chroma import ChromaAdapter
-        return ChromaAdapter(persist_dir=persist_dir)
+        return ChromaAdapter(persist_dir=persist_dir, embedding_fn=embedding_fn)
     elif backend == "mock":
         from adapters.memory.mock import MockMemory
         return MockMemory()

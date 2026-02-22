@@ -37,6 +37,7 @@ PLATFORM_LIMITS = {
 TASK_TIMEOUT = 600  # 10 minutes
 POLL_INTERVAL = 2   # seconds between TaskBoard polls
 STATUS_INTERVAL = 30  # seconds before sending "still processing" message
+HEALTH_CHECK_INTERVAL = 60  # seconds between health checks
 
 
 @dataclass
@@ -70,6 +71,7 @@ class ChannelManager:
         self._sessions = SessionStore()
         self._running = False
         self._processor_task: Optional[asyncio.Task] = None
+        self._health_task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def start(self):
@@ -96,17 +98,20 @@ class ChannelManager:
 
         # Start the task processor
         self._processor_task = asyncio.create_task(self._task_processor())
+        # Start the health monitor
+        self._health_task = asyncio.create_task(self._health_monitor())
         logger.info("ChannelManager started with %d adapter(s)", len(self.adapters))
 
     async def stop(self):
         """Stop all adapters gracefully."""
         self._running = False
-        if self._processor_task:
-            self._processor_task.cancel()
-            try:
-                await self._processor_task
-            except asyncio.CancelledError:
-                pass
+        for task in (self._processor_task, self._health_task):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
         for adapter in self.adapters:
             try:
                 await adapter.stop()
@@ -163,6 +168,9 @@ class ChannelManager:
         # Ensure processor task is running
         if not self._processor_task or self._processor_task.done():
             self._processor_task = asyncio.create_task(self._task_processor())
+        # Ensure health monitor is running
+        if not self._health_task or self._health_task.done():
+            self._health_task = asyncio.create_task(self._health_monitor())
 
         logger.info("Channel manager reloaded: %d adapter(s) running",
                      len(self.adapters))
@@ -230,6 +238,59 @@ class ChannelManager:
             return ["bot_token_env", "app_token_env"]
         return []
 
+    # ── Session context for tool access ──
+
+    _active_session_path = ".channel_session.json"
+
+    def _save_active_session(self, msg: ChannelMessage):
+        """Persist the active channel session so tools (e.g. send_file) can
+        route messages back to the correct channel/chat."""
+        try:
+            data = {
+                "session_id": msg.session_id,
+                "channel": msg.channel,
+                "chat_id": msg.chat_id,
+                "user_id": msg.user_id,
+                "user_name": msg.user_name,
+                "ts": time.time(),
+            }
+            with open(self._active_session_path, "w") as f:
+                json.dump(data, f)
+        except Exception as e:
+            logger.warning("Failed to save active session: %s", e)
+
+    @staticmethod
+    def get_active_session() -> Optional[dict]:
+        """Read the active channel session info (used by tool handlers)."""
+        path = ChannelManager._active_session_path
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    async def send_file(self, session_id: str, file_path: str,
+                        caption: str = "", reply_to: str = "") -> str:
+        """Send a file to a channel chat. Returns sent message ID.
+
+        Args:
+            session_id: Channel session ID in format "channel:chat_id"
+            file_path: Path to the file to send
+            caption: Optional caption/message with the file
+            reply_to: Optional message ID to reply to
+        """
+        if ":" not in session_id:
+            logger.error("Invalid session_id for send_file: %s", session_id)
+            return ""
+        channel, chat_id = session_id.split(":", 1)
+        adapter = self._get_adapter(channel)
+        if not adapter:
+            logger.error("No adapter for channel '%s' in send_file", channel)
+            return ""
+        return await adapter.send_file(chat_id, file_path, caption, reply_to)
+
     # ── Internal ──
 
     def _load_adapters(self):
@@ -289,9 +350,69 @@ class ChannelManager:
             return None
 
     async def _on_message(self, msg: ChannelMessage):
-        """Callback from channel adapters — enqueue message for processing."""
+        """Callback from channel adapters — enqueue message for processing.
+
+        Security checks (in order):
+          1. Rate limiting — reject if user sending too fast
+          2. User authentication — reject if user not authorized
+          3. Pairing code check — handle pairing flow for new users
+        """
         logger.info("[%s] message from %s (%s): %s",
                     msg.channel, msg.user_name, msg.chat_id, msg.text[:80])
+
+        # ── Rate limiting ──
+        try:
+            from core.rate_limiter import channel_limiter
+            rate_key = f"{msg.channel}:{msg.user_id}"
+            if not channel_limiter.allow(rate_key):
+                logger.warning("[rate] User %s rate-limited on %s",
+                               msg.user_id, msg.channel)
+                if channel_limiter.should_warn(rate_key, cooldown=30):
+                    adapter = self._get_adapter(msg.channel)
+                    if adapter:
+                        await adapter.send_message(
+                            msg.chat_id,
+                            "⚠️ 消息发送过快，请稍后再试。\n"
+                            "Rate limited — please wait a moment.")
+                return
+        except ImportError:
+            pass  # rate_limiter not available, continue without
+
+        # ── User authentication ──
+        try:
+            from core.user_auth import get_user_auth
+            channel_cfg = self.channels_config.get(msg.channel, {})
+            auth_mode = channel_cfg.get("auth_mode", "open")
+            allowed_users = channel_cfg.get("allowed_users", [])
+
+            auth = get_user_auth(auth_mode)
+            if not auth.is_authorized(msg.channel, msg.user_id, allowed_users):
+                # Check if this is a pairing code submission
+                if auth_mode == "pairing" and msg.text.strip().isdigit():
+                    result = auth.verify_pairing_code(
+                        msg.channel, msg.user_id,
+                        msg.text.strip(), msg.user_name)
+                    adapter = self._get_adapter(msg.channel)
+                    if adapter:
+                        emoji = "✅" if result["ok"] else "❌"
+                        await adapter.send_message(
+                            msg.chat_id, f"{emoji} {result['message']}")
+                    if result["ok"]:
+                        logger.info("[auth] User %s paired on %s",
+                                    msg.user_id, msg.channel)
+                    return
+
+                # Not authorized — send pairing prompt
+                adapter = self._get_adapter(msg.channel)
+                if adapter:
+                    await adapter.send_message(
+                        msg.chat_id,
+                        "🔒 身份验证未通过。请输入配对码。\n"
+                        "Authentication required. Please enter your pairing code.")
+                return
+        except ImportError:
+            pass  # user_auth not available, continue without
+
         await self._queue.put(msg)
 
     async def _task_processor(self):
@@ -346,13 +467,19 @@ class ChannelManager:
         # Send typing indicator
         await adapter.send_typing(msg.chat_id)
 
-        # Save user message to session history
+        # Save user message to session conversation history
         self._sessions.add_message(
             msg.session_id, "user", msg.text, msg.user_name)
 
         # Load conversation history for context injection
         session_history = self._sessions.format_history_for_prompt(
             msg.session_id, max_turns=10)
+        if session_history:
+            logger.info("[session:%s] loaded conversation history for context",
+                        msg.session_id)
+
+        # Save channel session info for tool access (e.g., send_file)
+        self._save_active_session(msg)
 
         # Submit task via Orchestrator (with session history)
         task_id = await asyncio.get_event_loop().run_in_executor(
@@ -363,15 +490,15 @@ class ChannelManager:
             return
 
         self._sessions.update_task(msg.session_id, task_id)
-        # Just show typing indicator — no "task submitted" noise
-        await adapter.send_typing(msg.chat_id)
+        await adapter.send_message(
+            msg.chat_id, f"🚀 任务已提交，正在处理...")
 
         # Poll for completion
         result = await self._wait_for_result(
             task_id, msg, adapter)
 
         if result:
-            # Save assistant response to session history
+            # Save assistant response to session conversation history
             self._sessions.add_message(
                 msg.session_id, "assistant", result[:2000])
 
@@ -429,7 +556,7 @@ class ChannelManager:
 
             # Submit and launch
             orch = Orchestrator()
-            task_id = orch.submit(full_description, required_role="planner")
+            task_id = orch.submit(full_description)
 
             # Run agents in background thread
             def _run():
@@ -467,7 +594,7 @@ class ChannelManager:
                 continue
 
             active_states = {"pending", "claimed", "review", "critique",
-                             "blocked", "paused"}
+                             "blocked", "paused", "synthesizing"}
             has_active = any(
                 t.get("status") in active_states for t in data.values())
 
@@ -486,7 +613,7 @@ class ChannelManager:
                 result = board.collect_results(task_id)
                 return self._clean_result(result) if result else "(无结果)"
 
-            # Send typing indicator after 30s (no text notification)
+            # Send typing indicator after 30s (less noisy)
             elapsed = time.time() - start
             if not status_sent and elapsed > STATUS_INTERVAL:
                 await adapter.send_typing(msg.chat_id)
@@ -494,26 +621,61 @@ class ChannelManager:
 
         return None  # timeout
 
+    @staticmethod
+    def _clean_result(text: str) -> str:
+        """Strip internal metadata from result before sending to user.
+
+        Removes: agent/task HTML comments, thinking tags, raw JSON task
+        delegations, separator lines, and excessive blank lines.
+        """
+        import re
+
+        # Remove <!-- agent:xxx task:xxx --> markers
+        text = re.sub(r'<!--\s*agent:.*?-->', '', text)
+        # Remove <think>...</think> reasoning traces
+        text = re.sub(r'<think>[\s\S]*?</think>', '', text)
+        # Remove raw JSON task arrays (planner delegation output)
+        # Matches: [ {"task": "...", "role": "..."} ]  or similar
+        text = re.sub(
+            r'```json\s*\n?\s*\[[\s\S]*?"(?:task|role)"[\s\S]*?\]\s*\n?```',
+            '', text)
+        text = re.sub(
+            r'^\s*\[\s*\{[^}]*"(?:task|role)"[^}]*\}\s*\]\s*$',
+            '', text, flags=re.MULTILINE)
+        # Remove separator lines between merged results
+        text = re.sub(r'\n---\n', '\n\n', text)
+        # Collapse excessive blank lines
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
+    async def _health_monitor(self):
+        """Periodically check adapter health and auto-reconnect dead ones."""
+        while self._running:
+            try:
+                await asyncio.sleep(HEALTH_CHECK_INTERVAL)
+            except asyncio.CancelledError:
+                break
+
+            for adapter in self.adapters:
+                if not self._running:
+                    break
+                try:
+                    alive = await adapter.health_check()
+                    if not alive:
+                        logger.warning(
+                            "Health check failed for %s — triggering reconnect",
+                            adapter.channel_name)
+                        asyncio.create_task(adapter.reconnect())
+                except Exception as e:
+                    logger.error("Health check error for %s: %s",
+                                 adapter.channel_name, e)
+
     def _get_adapter(self, channel_name: str) -> Optional[ChannelAdapter]:
         """Find adapter by channel name."""
         for adapter in self.adapters:
             if adapter.channel_name == channel_name:
                 return adapter
         return None
-
-    @staticmethod
-    def _clean_result(text: str) -> str:
-        """Strip internal metadata (agent/task comments, thinking tags) from result."""
-        import re
-        # Remove <!-- agent:xxx task:xxx --> markers
-        text = re.sub(r'<!--\s*agent:.*?-->', '', text)
-        # Remove <think>...</think> reasoning traces
-        text = re.sub(r'<think>[\s\S]*?</think>', '', text)
-        # Remove separator lines between merged results
-        text = re.sub(r'\n---\n', '\n\n', text)
-        # Collapse excessive blank lines
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        return text.strip()
 
     @staticmethod
     def _chunk_message(text: str, max_len: int) -> list[str]:

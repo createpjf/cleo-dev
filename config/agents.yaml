@@ -5,6 +5,12 @@ llm:
 memory:
   backend: hybrid
   long_term: true
+  # Embedding provider for vector search (default: chromadb built-in)
+  # Options: chromadb_default | openai | flock | local
+  embedding:
+    provider: openai
+    model: text-embedding-3-small
+    api_key_env: OPENAI_API_KEY
   episodic:
     enabled: true
     recall_budget_tokens: 1500
@@ -59,6 +65,32 @@ channels:
     app_token_env: SLACK_APP_TOKEN
     allowed_channels: []
     mention_required: true
+skill_registry:
+  url: https://raw.githubusercontent.com/punkpeye/cleo-skills/main/registry.json
+  auto_update: false
+# Cross-provider LLM routing (optional — disabled by default)
+# When enabled, requests route across providers with health-aware failover
+# provider_router:
+#   enabled: true
+#   strategy: "preference"     # latency | cost | preference | round_robin
+#   preferred: "minimax"
+#   probe_interval: 60         # health probe interval (seconds)
+#   providers:
+#     minimax:
+#       models: ["MiniMax-M2.5-highspeed", "MiniMax-M2.5", "MiniMax-M2.1"]
+#       cost_per_1k_tokens: 0.001
+#       priority: 1
+#       api_key_env: MINIMAX_API_KEY
+#       base_url_env: MINIMAX_BASE_URL
+#     openai:
+#       models: ["gpt-4o-mini", "gpt-4o"]
+#       cost_per_1k_tokens: 0.01
+#       priority: 2
+#       api_key_env: OPENAI_API_KEY
+#     ollama:
+#       models: ["llama3.2", "qwen2.5"]
+#       cost_per_1k_tokens: 0
+#       priority: 3
 workspace:
   path: workspace
   shared: true
