@@ -350,9 +350,69 @@ class ChannelManager:
             return None
 
     async def _on_message(self, msg: ChannelMessage):
-        """Callback from channel adapters — enqueue message for processing."""
+        """Callback from channel adapters — enqueue message for processing.
+
+        Security checks (in order):
+          1. Rate limiting — reject if user sending too fast
+          2. User authentication — reject if user not authorized
+          3. Pairing code check — handle pairing flow for new users
+        """
         logger.info("[%s] message from %s (%s): %s",
                     msg.channel, msg.user_name, msg.chat_id, msg.text[:80])
+
+        # ── Rate limiting ──
+        try:
+            from core.rate_limiter import channel_limiter
+            rate_key = f"{msg.channel}:{msg.user_id}"
+            if not channel_limiter.allow(rate_key):
+                logger.warning("[rate] User %s rate-limited on %s",
+                               msg.user_id, msg.channel)
+                if channel_limiter.should_warn(rate_key, cooldown=30):
+                    adapter = self._get_adapter(msg.channel)
+                    if adapter:
+                        await adapter.send_message(
+                            msg.chat_id,
+                            "⚠️ 消息发送过快，请稍后再试。\n"
+                            "Rate limited — please wait a moment.")
+                return
+        except ImportError:
+            pass  # rate_limiter not available, continue without
+
+        # ── User authentication ──
+        try:
+            from core.user_auth import get_user_auth
+            channel_cfg = self.channels_config.get(msg.channel, {})
+            auth_mode = channel_cfg.get("auth_mode", "open")
+            allowed_users = channel_cfg.get("allowed_users", [])
+
+            auth = get_user_auth(auth_mode)
+            if not auth.is_authorized(msg.channel, msg.user_id, allowed_users):
+                # Check if this is a pairing code submission
+                if auth_mode == "pairing" and msg.text.strip().isdigit():
+                    result = auth.verify_pairing_code(
+                        msg.channel, msg.user_id,
+                        msg.text.strip(), msg.user_name)
+                    adapter = self._get_adapter(msg.channel)
+                    if adapter:
+                        emoji = "✅" if result["ok"] else "❌"
+                        await adapter.send_message(
+                            msg.chat_id, f"{emoji} {result['message']}")
+                    if result["ok"]:
+                        logger.info("[auth] User %s paired on %s",
+                                    msg.user_id, msg.channel)
+                    return
+
+                # Not authorized — send pairing prompt
+                adapter = self._get_adapter(msg.channel)
+                if adapter:
+                    await adapter.send_message(
+                        msg.chat_id,
+                        "🔒 身份验证未通过。请输入配对码。\n"
+                        "Authentication required. Please enter your pairing code.")
+                return
+        except ImportError:
+            pass  # user_auth not available, continue without
+
         await self._queue.put(msg)
 
     async def _task_processor(self):

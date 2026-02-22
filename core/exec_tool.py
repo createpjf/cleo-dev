@@ -99,6 +99,18 @@ DENY_LIST = [
     r"\bshutdown\b",
     r"\breboot\b",
     r"\bhalt\b",
+    # Injection patterns
+    r"\$\(.*\)",             # command substitution $(...)
+    r"`[^`]+`",              # backtick command substitution
+    r";\s*rm\b",             # chained rm
+    r"\|\s*bash\b",          # pipe to bash
+    r"\|\s*sh\b",            # pipe to sh
+    r">\s*/etc/",            # write to /etc
+    r">\s*/System/",         # write to system dirs (macOS)
+    r"\beval\b",             # eval command
+    r"\bexport\s+.*=",       # export env vars (prevent env poisoning)
+    r"\bcurl\b.*\|\s*(bash|sh|python|node)\b",  # curl | bash
+    r"\bwget\b.*\|\s*(bash|sh|python|node)\b",  # wget | bash
 ]
 
 _compiled_allow: list[re.Pattern] = []
@@ -206,6 +218,25 @@ def execute(
     Returns:
         {ok, stdout, stderr, exit_code, elapsed_s, blocked?, reason?}
     """
+    # Rate limiting (per agent)
+    try:
+        from core.rate_limiter import exec_limiter
+        if not exec_limiter.allow(agent_id):
+            logger.warning("[exec] Rate limited: agent=%s, cmd=%s",
+                           agent_id, command[:60])
+            _log_execution(agent_id, command, False, "RATE_LIMITED", 0)
+            return {
+                "ok": False,
+                "blocked": True,
+                "reason": "Rate limited — too many commands in quick succession",
+                "stdout": "",
+                "stderr": "",
+                "exit_code": -1,
+                "elapsed_s": 0,
+            }
+    except ImportError:
+        pass  # rate_limiter not available
+
     # Check approval
     if not force:
         allowed, reason = is_command_allowed(command)
