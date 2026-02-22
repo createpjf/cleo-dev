@@ -179,6 +179,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._handle_tools()
         elif path == "/v1/models":
             self._handle_models()
+        elif path == "/v1/providers":
+            self._handle_providers()
         elif path.startswith("/v1/task/"):
             task_id = path[len("/v1/task/"):]
             self._handle_get_task(task_id)
@@ -970,6 +972,25 @@ class _Handler(BaseHTTPRequestHandler):
             self._json_response(200, {
                 "models": [], "provider": provider,
                 "error": "No API key set and no known model list for this provider"})
+
+    def _handle_providers(self):
+        """Return provider router status for dashboard."""
+        try:
+            from core.provider_router import get_router
+            router = get_router()
+            if router:
+                self._json_response(200, router.get_status())
+            else:
+                self._json_response(200, {
+                    "enabled": False,
+                    "message": "Provider router not enabled. "
+                    "Add provider_router.enabled: true to agents.yaml",
+                })
+        except ImportError:
+            self._json_response(200, {
+                "enabled": False,
+                "error": "provider_router module not available",
+            })
 
     # ══════════════════════════════════════════════════════════════════════════
     #  NEW HANDLERS — Agent Management
@@ -2643,6 +2664,16 @@ def start_gateway(port: int = 0, token: str = "",
         logger.info("Channel manager started (hot-reload ready)")
     except Exception as e:
         logger.warning("Channel manager failed to start: %s", e)
+
+    # ── Provider Router (cross-provider LLM failover) ──
+    try:
+        from core.provider_router import build_provider_router
+        router = build_provider_router(full_config)
+        if router:
+            logger.info("Provider router enabled: %s (strategy=%s)",
+                        ", ".join(router.provider_names), router.strategy)
+    except Exception as e:
+        logger.warning("Provider router failed to init: %s", e)
 
     # ── WebSocket gateway (async, runs in background thread) ──
     try:

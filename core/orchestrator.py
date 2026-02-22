@@ -810,9 +810,26 @@ async def _check_planner_closeouts(agent, bus, board: TaskBoard, config: dict):
 def _build_llm_for_agent(agent_def: dict, config: dict):
     """
     Build a Resilient LLM adapter for a specific agent.
+
+    Two modes:
+      1. Provider Router (cross-provider failover) — if provider_router.enabled
+         Routes requests across multiple providers (MiniMax → OpenAI → Ollama)
+      2. Single Provider + ResilientLLM (default) — model failover within one provider
+
     Per-agent llm: block overrides global llm: config.
-    Wraps base adapter with retry, circuit breaker, and model failover.
     """
+    # ── Mode 1: Provider Router (cross-provider failover) ──
+    try:
+        from core.provider_router import get_router
+        router = get_router()
+        if router and router.provider_names:
+            logger.info("[orchestrator] Using provider router for agent %s",
+                        agent_def.get("id", "?"))
+            return router
+    except ImportError:
+        pass
+
+    # ── Mode 2: Single provider + ResilientLLM (default) ──
     agent_llm    = agent_def.get("llm", {})
     provider     = agent_llm.get("provider") or config.get("llm", {}).get("provider", "flock")
     api_key_env  = agent_llm.get("api_key_env", "")
