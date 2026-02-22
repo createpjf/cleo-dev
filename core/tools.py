@@ -8,15 +8,17 @@ Architecture:
   - Agents invoke tools via structured JSON blocks in their output
   - Tool results are fed back to the agent as context
 
-Tool categories (22 tools across 8 groups):
+Tool categories (32 tools across 9 groups):
   - Web:        web_search (Brave + Perplexity), web_fetch (text + markdown)
   - Filesystem: read_file, write_file, edit_file, list_dir
   - Memory:     memory_search, memory_save, kb_search, kb_write
   - Task:       task_create, task_status
   - Automation: exec, cron, process
   - Skill:      check_skill_deps, install_skill_cli, search_skills, install_remote_skill
+  - Browser:    browser_navigate, browser_click, browser_fill, browser_get_text,
+                browser_screenshot, browser_evaluate, browser_page_info
   - Media:      screenshot, notify
-  - Messaging:  send_mail
+  - Messaging:  send_mail, send_file
 
 Access control:
   - Tool profiles: "minimal", "coding", "full"
@@ -130,7 +132,10 @@ TOOL_PROFILES = {
                "notify", "transcribe", "memory_search", "memory_save",
                "kb_search", "kb_write", "task_create", "task_status",
                "send_mail", "check_skill_deps", "install_skill_cli",
-               "search_skills", "install_remote_skill"},
+               "search_skills", "install_remote_skill",
+               "browser_navigate", "browser_click", "browser_fill",
+               "browser_get_text", "browser_screenshot",
+               "browser_evaluate", "browser_page_info"},
     "full": None,  # None = all tools allowed
 }
 
@@ -145,6 +150,9 @@ TOOL_GROUPS = {
     "group:skill": ["check_skill_deps", "install_skill_cli",
                     "search_skills", "install_remote_skill"],
     "group:messaging": ["send_mail"],
+    "group:browser": ["browser_navigate", "browser_click", "browser_fill",
+                      "browser_get_text", "browser_screenshot",
+                      "browser_evaluate", "browser_page_info"],
 }
 
 
@@ -1080,6 +1088,85 @@ def _handle_install_remote_skill(**kwargs) -> dict:
     return result
 
 
+# ── Browser automation handlers ──
+
+def _handle_browser_navigate(**kwargs) -> dict:
+    """Navigate the browser to a URL."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_navigate
+        return handle_browser_navigate(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed. Run: pip install playwright && playwright install chromium"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_click(**kwargs) -> dict:
+    """Click an element in the browser."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_click
+        return handle_browser_click(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_fill(**kwargs) -> dict:
+    """Fill a form field in the browser."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_fill
+        return handle_browser_fill(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_get_text(**kwargs) -> dict:
+    """Extract text content from the page."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_get_text
+        return handle_browser_get_text(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_screenshot(**kwargs) -> dict:
+    """Take a screenshot of the page."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_screenshot
+        return handle_browser_screenshot(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_evaluate(**kwargs) -> dict:
+    """Run JavaScript in the page."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_evaluate
+        return handle_browser_evaluate(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _handle_browser_page_info(**kwargs) -> dict:
+    """Get current page info (URL, title)."""
+    try:
+        from adapters.browser.playwright_adapter import handle_browser_page_info
+        return handle_browser_page_info(**kwargs)
+    except ImportError:
+        return {"ok": False, "error": "playwright not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  REGISTRY
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1177,6 +1264,61 @@ _BUILTIN_TOOLS: list[Tool] = [
                           "description": "Add skill to all agents (default: true)",
                           "required": False}},
          _handle_install_remote_skill, group="skill"),
+
+    # ── Browser automation tools ──
+    Tool("browser_navigate",
+         "Open a URL in a headless browser. Use for web scraping, form filling, "
+         "or interacting with web pages that require JavaScript rendering.",
+         {"url": {"type": "string",
+                   "description": "URL to navigate to (must include https://)",
+                   "required": True}},
+         _handle_browser_navigate, group="browser"),
+
+    Tool("browser_click",
+         "Click an element on the page by CSS selector.",
+         {"selector": {"type": "string",
+                        "description": "CSS selector (e.g. 'button.submit', '#login-btn')",
+                        "required": True}},
+         _handle_browser_click, group="browser"),
+
+    Tool("browser_fill",
+         "Fill a form input field with text.",
+         {"selector": {"type": "string",
+                        "description": "CSS selector for the input field",
+                        "required": True},
+          "value": {"type": "string",
+                     "description": "Text value to enter",
+                     "required": True}},
+         _handle_browser_fill, group="browser"),
+
+    Tool("browser_get_text",
+         "Extract text content from the page or a specific element.",
+         {"selector": {"type": "string",
+                        "description": "CSS selector (default: 'body' for full page)",
+                        "required": False}},
+         _handle_browser_get_text, group="browser"),
+
+    Tool("browser_screenshot",
+         "Take a screenshot of the current page. Returns file path.",
+         {"full_page": {"type": "boolean",
+                         "description": "Capture full scrollable page (default: false)",
+                         "required": False},
+          "selector": {"type": "string",
+                        "description": "Screenshot only this element (CSS selector)",
+                        "required": False}},
+         _handle_browser_screenshot, group="browser"),
+
+    Tool("browser_evaluate",
+         "Execute JavaScript code in the page context. Returns the result.",
+         {"expression": {"type": "string",
+                          "description": "JavaScript expression to evaluate",
+                          "required": True}},
+         _handle_browser_evaluate, group="browser"),
+
+    Tool("browser_page_info",
+         "Get current browser page info (URL, title).",
+         {},
+         _handle_browser_page_info, group="browser"),
 
     # ── Media tools ──
     Tool("screenshot",
