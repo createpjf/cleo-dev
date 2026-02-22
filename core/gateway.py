@@ -413,11 +413,22 @@ class _Handler(BaseHTTPRequestHandler):
             agents_count = len(cfg.get("agents", []))
 
         uptime = time.time() - _start_time
+        ws_info = {}
+        try:
+            from core.ws_gateway import _instance as _ws_instance
+            if _ws_instance and _ws_instance.is_running:
+                ws_info = {
+                    "ws_port": _ws_instance.port,
+                    "ws_clients": _ws_instance.client_count,
+                }
+        except ImportError:
+            pass
         self._json_response(200, {
             "status": "ok",
             "agents": agents_count,
             "uptime_seconds": round(uptime, 1),
             "port": _config.get("port", DEFAULT_PORT),
+            **ws_info,
         })
 
     def _handle_status(self):
@@ -2632,6 +2643,27 @@ def start_gateway(port: int = 0, token: str = "",
         logger.info("Channel manager started (hot-reload ready)")
     except Exception as e:
         logger.warning("Channel manager failed to start: %s", e)
+
+    # ── WebSocket gateway (async, runs in background thread) ──
+    try:
+        from core.ws_gateway import start_ws_gateway, _HAS_WEBSOCKETS
+        if _HAS_WEBSOCKETS:
+            import asyncio
+
+            def _run_ws():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                ws_port = port + 1
+                loop.run_until_complete(start_ws_gateway(port=ws_port, token=token))
+                loop.run_forever()
+
+            ws_thread = Thread(target=_run_ws, daemon=True, name="ws-gateway")
+            ws_thread.start()
+            logger.info("WebSocket gateway started on ws://0.0.0.0:%d", port + 1)
+        else:
+            logger.info("WebSocket gateway disabled (websockets not installed)")
+    except Exception as e:
+        logger.warning("WebSocket gateway failed to start: %s", e)
 
     # ── Serve ──
 

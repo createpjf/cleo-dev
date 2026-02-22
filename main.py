@@ -154,6 +154,12 @@ def interactive_main():
             gw_server = start_gateway(port=gw_port, token=gw_token, daemon=True)
             if gw_server:
                 console.print(f"  [dim]Gateway:[/dim] [bold]http://127.0.0.1:{gw_port}/[/bold]  [dim]/gateway for status[/dim]")
+                try:
+                    from core.ws_gateway import _HAS_WEBSOCKETS
+                    if _HAS_WEBSOCKETS:
+                        console.print(f"  [dim]WebSocket:[/dim] [bold]ws://0.0.0.0:{gw_port + 1}/[/bold]  [dim]real-time push[/dim]")
+                except ImportError:
+                    pass
             else:
                 console.print(f"  [yellow]Gateway: port {gw_port} in use (use --force or /gateway restart)[/yellow]")
         except Exception as e:
