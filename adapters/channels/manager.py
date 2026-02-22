@@ -67,7 +67,9 @@ class ChannelManager:
         self.config = config
         self.channels_config = config.get("channels", {})
         self.adapters: list[ChannelAdapter] = []
-        self._queue: asyncio.Queue[ChannelMessage] = asyncio.Queue()
+        # NOTE: Queue is created lazily in start() to ensure it's bound to
+        # the correct event loop (critical for Python 3.9 compatibility).
+        self._queue: Optional[asyncio.Queue] = None
         self._sessions = SessionStore()
         self._running = False
         self._processor_task: Optional[asyncio.Task] = None
@@ -78,6 +80,8 @@ class ChannelManager:
         """Load and start all enabled channel adapters."""
         self._running = True
         self._loop = asyncio.get_event_loop()
+        # Create queue inside the running event loop (Python 3.9 compat)
+        self._queue = asyncio.Queue()
 
         # Load adapters
         self._load_adapters()
